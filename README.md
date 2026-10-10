@@ -1,36 +1,71 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Bridge
 
-## Getting Started
+Bridge turns lecture notes into explanations built around something the student already loves. Upload a PDF or paste notes, name an interest (football tactics, baking, chess), and get back the key concepts, an analogy for each one with an honest note on where it breaks down, a concept map, a quiz and next steps.
 
-First, run the development server:
+Next.js 14 (App Router), TypeScript, Tailwind. No database and no auth: a report lives in the browser tab that requested it.
+
+## Run it
 
 ```bash
+npm install
+cp .env.example .env.local
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000. With `DEMO_MODE=true` in `.env.local` the app works without an API key and always returns the sample report. To generate real reports, set `LLM_API_KEY` to an OpenAI key and `DEMO_MODE=false`, then restart the dev server.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `LLM_API_KEY` | unless `DEMO_MODE=true` | OpenAI API key |
+| `LLM_MODEL` | no | Model id, default `gpt-6-luna` |
+| `LLM_REASONING_EFFORT` | no | `none`, `low`, `medium` or `high` for reasoning models |
+| `LLM_BASE_URL` | no | Any OpenAI-compatible endpoint |
+| `DEMO_MODE` | no | `true` returns the cached sample and skips the LLM |
+| `RATE_LIMIT_PER_MINUTE` | no | Requests per client IP per minute, default 10 |
 
-## Learn More
+## API
 
-To learn more about Next.js, take a look at the following resources:
+`POST /api/generate` takes `multipart/form-data`:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Field | Notes |
+| --- | --- |
+| `file` | PDF, optional, up to 10 MB |
+| `text` | Pasted notes, optional. At least one of `file` and `text` is required |
+| `interest` | Required, up to 120 characters |
+| `level` | Optional, defaults to `undergraduate` |
+| `language` | Optional, `en` (default) or `tr` |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+It answers `200` with a `Report`, or `{ "error": string }` with a 4xx or 5xx status. Notes longer than 15,000 characters are shortened section by section, and the response then carries `X-Bridge-Notes-Truncated: true`.
 
-## Deploy on Vercel
+```bash
+curl -X POST http://localhost:3000/api/generate -F "file=@lecture.pdf;type=application/pdf" -F "interest=football tactics" -F "language=en"
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+More example calls, with the expected result of each, are at the bottom of `app/api/generate/route.ts`.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Where things are
+
+| Path | What it holds |
+| --- | --- |
+| `lib/types.ts` | The `Report` contract: Zod schemas and the types inferred from them |
+| `lib/sample.ts` | A complete sample report (chemical equilibrium bridged to football tactics) |
+| `lib/prompt.ts` | The system prompt and the messages sent to the LLM |
+| `lib/llm.ts` | The LLM call, reply validation and the single corrective retry |
+| `lib/notes.ts` | Text clean-up and heading-aware shortening of long notes |
+| `lib/pdf.ts` | PDF text extraction |
+| `lib/rate-limit.ts` | In-memory rate limiter |
+| `lib/constants.ts` | Limits shared by the form and the API |
+| `app/api/generate/route.ts` | The endpoint |
+| `app/page.tsx`, `components/GenerateForm.tsx` | Landing page and form |
+| `app/report/page.tsx`, `components/ReportView.tsx` | Report viewer; `/report?sample=1` shows the sample |
+
+The form stores the returned report in `sessionStorage` under the key `bridge:report`, and `/report` reads it from there.
+
+## Limits to know about
+
+- The rate limiter keeps its counts in the memory of one server process, so they reset on restart and are not shared between serverless instances.
+- Scanned PDFs contain no selectable text and are rejected with a message asking for pasted text.
+- Vercel rejects request bodies over 4.5 MB before they reach the app, so the 10 MB PDF limit only applies in full on other hosts and locally.
+- The route allows up to 120 seconds per request (`maxDuration`), which needs Fluid compute on Vercel's Hobby plan.
