@@ -126,7 +126,7 @@ export const SAMPLE_REPORT: Report = {
       { from: "n5", to: "n10", label: "is like" },
       { from: "n2", to: "n1", label: "quantifies" },
       { from: "n3", to: "n2", label: "is compared with" },
-      { from: "n4", to: "n3", label: "predicts the shift when Q ≠ K" },
+      { from: "n4", to: "n3", label: "predicts shifts in" },
       { from: "n5", to: "n1", label: "speeds the approach to" },
       { from: "n7", to: "n6", label: "sets" },
       { from: "n9", to: "n6", label: "leads to a new" },
