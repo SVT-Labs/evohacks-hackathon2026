@@ -1,6 +1,6 @@
 /**
  * A hand-written example Report: a chemistry lecture on chemical equilibrium
- * bridged to football tactics.
+ * bridged to football tactics, plus the same report translated into Turkish.
  *
  * It is what POST /api/generate returns when DEMO_MODE=true, and it doubles as
  * realistic fixture data for building and testing the report UI.
@@ -196,5 +196,198 @@ export const SAMPLE_REPORT: Report = {
     "Watch 15 minutes of a match on a tactical (wide-angle) camera and note, once a minute, how many outfield players each team has ahead of the ball. See how stable the count is in settled play and which events disturb it.",
     "Read about rest defence and counter-pressing, which is how top sides decide how many players stay behind the ball while attacking, and match each idea to dynamic equilibrium, K or Q.",
     "Pick a match that was changed by a red card or a tactical substitution. Describe the old balance, the disturbance and the new shape the team settled into, then say where the comparison with Le Chatelier's principle holds and where it breaks.",
+  ],
+};
+
+/** The same report translated into Turkish; /report?sample=tr shows it. */
+export const SAMPLE_REPORT_TR: Report = {
+  title: "Futbol Taktikleri Penceresinden Kimyasal Denge",
+  interest: "Futbol taktikleri",
+  language: "tr",
+  summary:
+    "Bu ders, tersinir bir tepkimenin dengede olmasının ne anlama geldiğini, denge sabiti K ile denge kesri Q'nun dengeyi nasıl tanımlayıp öngördüğünü ve dengesi bozulan bir sistemin nasıl tepki verdiğini açıklıyor. Her fikir futbol taktikleriyle ilişkilendiriliyor: oyuncular hareket etmeyi sürdürürken korunan takım dizilişi, bir oyun planının oturduğu denge ve bir takımın yüklenmeyi karşılamak için kayma biçimi. Futbol benzetmesinin kimyayla örtüşmediği her noktada rapor bunu açıkça belirtiyor.",
+  concepts: [
+    {
+      id: "c1",
+      name: "Dinamik denge",
+      lecture_explanation:
+        "Kapalı bir sistemde tersinir bir tepkime, ileri tepkime ile geri tepkime aynı hızla gerçekleştiğinde dengeye ulaşır. İki tepkime de sürer, ancak birbirini dengelediği için girenlerin ve ürünlerin derişimleri artık değişmez. Denge, miktarların eşit olduğu anlamına gelmez; yalnızca sabit olduğu anlamına gelir.",
+      bridge_title: "Oyuncular hareket ederken diziliş korunur",
+      bridge_explanation:
+        "Set hücumu yapan bir takımı izleyin: bekler bindirme yapar, orta saha oyuncuları geriye iner, kanat oyuncuları içeri kat eder. Oyuncular hiç durmaz, yine de genel diziliş, yani topun önünde ve gerisinde kaç oyuncu olduğu, aynı kalır. \"Dinamik\" kelimesinin anlamı budur: tek tek oyuncular düzeyinde sürekli hareket, takımın bütünü düzeyinde ise net değişim yok.",
+      analogy:
+        "Bir oyuncu orta çizgiyi ileri doğru her geçtiğinde, bir takım arkadaşı çizginin gerisine döner. Oyuncular (moleküller) sürekli yarı saha değiştirir (giren ⇌ ürün), ama iki yöndeki akış eşit olduğu için her yarıdaki oyuncu sayısı (derişimler) sabit kalır.",
+      analogy_limits:
+        "Oyuncular bir plana uyarak bilerek yer değiştirir. Moleküller ise rastgele çarpışmalarla tepkimeye girer; eşit hızlar bir niyetten değil, yaklaşık 10²³ taneciğin istatistiğinden doğar. Ayrıca bir takımın yalnızca on saha oyuncusu vardır, dolayısıyla \"derişimleri\" ancak birer birer değişir; takım kapalı bir sistem de değildir: ağzı kapalı bir tepkime kabında oyuncu değişikliklerinin ve kırmızı kartların karşılığı yoktur.",
+      example:
+        "Renksiz N₂O₄'ü bir cam kaba koyup ağzını kapatın: N₂O₄(g) ⇌ 2NO₂(g). NO₂'nin kahverengi rengi koyulaşır, ardından sabit kalır; yine de izotopla işaretleme deneyleri, moleküllerin her iki yönde de dönüşmeyi sürdürdüğünü gösterir. Futboldaki karşılığı: oturmuş oyunun beş dakikasında 12 ileri koşu orta çizgiyi geçer, 12 geri dönüş koşusu da çizgiyi geri geçer. 24 geçiş yaşanmasına rağmen her yarıdaki net değişim sıfırdır.",
+      misconception:
+        "\"Dengede tepkime durmuştur\" ve \"girenlerin ve ürünlerin miktarları eşittir.\" İkisi de yanlıştır. İki tepkime eşit hızlarla sürer ve karışım büyük ölçüde girenlerden ya da büyük ölçüde ürünlerden oluşabilir.",
+      strength: 5,
+    },
+    {
+      id: "c2",
+      name: "Denge sabiti, K",
+      lecture_explanation:
+        "aA + bB ⇌ cC + dD tepkimesi için denge sabiti, dengedeki derişimler kullanılarak Kc = [C]^c [D]^d / ([A]^a [B]^b) şeklinde yazılır. Belirli bir sıcaklıkta K, başlangıç miktarları ne olursa olsun hep aynı değeri alır. Büyük bir K (1'den çok büyük) dengede ürünlerin baskın olduğunu, küçük bir K (1'den çok küçük) ise girenlerin baskın olduğunu gösterir.",
+      bridge_title: "Bir oyun planının oturduğu denge",
+      bridge_explanation:
+        "Her taktik kurgunun kendine özgü bir hücum-savunma dengesi vardır. Yüksek pres yapan bir takım topun önünde çok oyuncuyla yerleşir; derin savunma bloğuyla oynayan bir takım ise az oyuncuyla. Oyun ister başlama vuruşuyla, ister kale vuruşuyla, ister taç atışıyla yeniden başlamış olsun, takım oyun planının belirlediği dengeye geri döner. K, bir tepkime için işte bu yerleşik dengedir.",
+      analogy:
+        "K, bir takımın sabit bir oyun planıyla oturduğu hücumcu-savunmacı oranına benzer. Topyekûn hücum planı büyük bir K'dır (ürün tarafı kalabalıktır); otobüsü çekme planı ise küçük bir K. Takımın oturduğu oranı yalnızca yeni bir oyun planı (yeni bir sıcaklık) değiştirir.",
+      analogy_limits:
+        "K, yalnızca sıcaklıkla belirlenen kesin bir sayıdır ve stokiyometrik üsleri içerir. Bir takımın dengesi ise net değildir; skora, yorgunluğa ve rakibe göre değişir. Ayrıca K, dengeye ne kadar hızlı ulaşıldığı hakkında hiçbir şey söylemez; oysa bir oyun planı genellikle bir tempoyu da beraberinde getirir.",
+      example:
+        "H₂(g) + I₂(g) ⇌ 2HI(g) tepkimesinde denge derişimlerinin [H₂] = [I₂] = 0,10 M ve [HI] = 0,70 M olduğunu varsayalım. Bu durumda Kc = (0,70)² / (0,10 × 0,10) = 49 olur. K, 1'in çok üzerindedir, yani denge ürünler lehinedir: bu, oyuncularının çoğuyla hücum yarısına yerleşen bir takımın kimyadaki karşılığıdır. Bunun yerine saf HI ile başlasanız da aynı sıcaklıkta karışım yine K = 49'u sağlayacak şekilde dengelenir; tıpkı takımın oyun nasıl yeniden başlarsa başlasın aynı dengeyi bulması gibi.",
+      misconception:
+        "\"Daha fazla giren eklerseniz ya da basıncı değiştirirseniz K değişir.\" Değişmez. Bu değişiklikler derişimleri değiştirir; sistem de aynı K yeniden sağlanana kadar kendini yeniden ayarlar. Yeni bir K'yı yalnızca sıcaklık değişimi verir.",
+      strength: 4,
+    },
+    {
+      id: "c3",
+      name: "Denge kesri, Q",
+      lecture_explanation:
+        "Denge kesri Q, K ile aynı ifadeyi kullanır; ancak dengedeki derişimler yerine herhangi bir andaki derişimlerle hesaplanır. İkisini karşılaştırmak, tepkimenin hangi yöne ilerleyeceğini söyler. Q < K ise ürünler gereğinden azdır, bu yüzden ileri tepkime baskın olur. Q > K ise ürünler gereğinden fazladır, bu yüzden geri tepkime baskın olur. Q = K ise sistem dengededir.",
+      bridge_title: "Anlık dizilişi planla karşılaştırmak",
+      bridge_explanation:
+        "Teknik direktör sahaya bir göz atar ve o anki dizilişi planın gerektirdiği dizilişle karşılaştırır. İleride çok az oyuncu mu var? Öne çıkın. Çok fazla oyuncu ileride mi kaldı? Geri dönün. Q anlık görüntüdür, K hedeftir; aradaki fark da bir sonraki hareketin hangi yöne olacağını söyler.",
+      analogy:
+        "Q, o andaki hücumcu-savunmacı oranıdır; K ise oyun planının oturduğu oran. Q < K: takım fazla geride, bu yüzden oyuncular öne çıkar (ileri tepkime). Q > K: takım hücuma fazla oyuncu yığmış, bu yüzden oyuncular geri koşar (geri tepkime). Q = K: diziliş doğrudur ve yalnızca birebir yer değiştirmeler sürer.",
+      analogy_limits:
+        "Bir takım bu uyumsuzluğu görmezden gelebilir, çünkü yorgun oyuncular geri koşmayabilir; ama kimyasal bir karışım her zaman K'ya doğru ilerler. Moleküller ayrıca bir hedefi \"görmez\": net kayma yalnızca bir yöndeki tepkime hızı geçici olarak diğerininkinden yüksek olduğu için ortaya çıkar.",
+      example:
+        "H₂(g) + I₂(g) ⇌ 2HI(g) için K = 49 iken bir karışımda [H₂] = [I₂] = 0,20 M ve [HI] = 0,80 M bulunuyor. Q = (0,80)² / (0,20 × 0,20) = 16. 16 < 49 olduğundan ileri tepkime baskın gelir ve Q 49'a yükselene kadar daha fazla HI oluşur. Sahada: plan yüksek bir hücumcu-savunmacı oranında oturuyor, mevcut oran daha düşük; bu yüzden takım, dizilişi planla örtüşene kadar öne çıkar.",
+      misconception:
+        "\"Q ve K aynı şeydir.\" Formülleri aynıdır, ama K belirli bir sıcaklıkta tek ve sabit bir değerdir; Q ise o anki karışıma bağlı olarak herhangi bir değer alabilir. İkisi yalnızca dengede eşittir.",
+      strength: 4,
+    },
+    {
+      id: "c4",
+      name: "Le Chatelier ilkesi",
+      lecture_explanation:
+        "Dengedeki bir sistemin dengesi bozulursa sistem, bu bozulmayı kısmen azaltacak yöne kayar. Giren eklemek dengeyi ürünlere doğru kaydırır. Basıncı artırmak dengeyi daha az gaz molekülü olan tarafa kaydırır. Sıcaklığı yükseltmek dengeyi endotermik yöne kaydırır. Derişim ve basınç değişiklikleri K'yı değiştirmez, ama sıcaklık değişimi K'ya yeni bir değer verir.",
+      bridge_title: "Yüklenmeyi karşılamak için yana kaymak",
+      bridge_explanation:
+        "Rakip bir kanatta yüklenme yaptığında, iyi çalışılmış bir takım dengeyi yeniden kurmak için o tarafa kayar. Yüklenmeyi tamamen ortadan kaldırmaz. Bir kısmını karşılar ve yeni, biraz farklı bir dizilişe oturur. Kimyasal sistemler de bir bozulmaya aynı kısmi, telafi edici biçimde tepki verir.",
+      analogy:
+        "Dengeyi bozan bir etki, rakibin sol kanadınıza fazladan bir oyuncu koşturmasına benzer. Takım baskıyı hafifletmek için yüklenilen tarafa kayar (tepkime de eklenen maddeyi tüketecek yöne kayar) ve eskisinin aynısı olmayan yeni, dengeli bir dizilişe oturur.",
+      analogy_limits:
+        "Savunmacılar oyunu önceden okur ve kaymaya kendileri karar verir. Bir tepkimenin ise niyeti yoktur: kayma, bozulma tepkime hızlarından birini diğerinden daha çok değiştirdiği için olur. Benzetme önemli bir ayrımı da bulanıklaştırır. Giren eklemek ya da basıncı değiştirmek K'yı aynı bırakır; sıcaklığı değiştirmek ise K'nın kendisini değiştirir. Bu da takımın plan içinde kaymasından çok teknik direktörün oyun planını yeniden yazmasına benzer.",
+      example:
+        "Haber yöntemi: N₂(g) + 3H₂(g) ⇌ 2NH₃(g), ΔH = −92 kJ/mol. Basıncı artırmak NH₃ oluşumunu destekler, çünkü 4 mol gaz 2 mol gaza dönüşür. Sıcaklığı yükseltmek endotermik geri tepkimeyi destekler, bu yüzden NH₃'ün denge verimi düşer. Futboldaki karşılığı: bir takımın oynayabileceği alanı daraltın, takım daha az yer kaplayan bir dizilişe sıkışır. Bu tepki daralmanın etkisini hafifletir ama ortadan kaldırmaz.",
+      misconception:
+        "\"Sistem değişikliği tamamen geri alır ve ilk derişimlere döner.\" Sistem değişikliğin etkisini yalnızca kısmen giderir. Fazladan N₂ eklendikten sonra yeni denge, eklemeden öncekinden yine daha fazla N₂ içerir; yalnızca eklemenin hemen sonrasındakinden daha az.",
+      strength: 4,
+    },
+    {
+      id: "c5",
+      name: "Katalizörler ve denge",
+      lecture_explanation:
+        "Katalizör aktifleşme enerjisini düşürür; bu da ileri ve geri tepkimeyi aynı oranda hızlandırır. Bu nedenle sistem dengeye daha çabuk ulaşır, ancak denge konumu ve K'nın değeri değişmez. Katalizör tepkimede harcanmaz.",
+      bridge_title: "Hızlı top dolaşımı: aynı diziliş, daha çabuk",
+      bridge_explanation:
+        "Hızlı bir zemin ve tek pas oyunu, bir takımın hücum dizilişine daha hızlı geçmesini ve savunma dizilişini de daha hızlı yeniden kurmasını sağlar. Geçişler her iki yönde de hızlanır, ama oyun planının oturduğu diziliş değişmez.",
+      analogy:
+        "Katalizör daha hızlı top dolaşımına benzer: ileriye ya da geriye her geçiş daha çabuk gerçekleşir, bu yüzden takım oturduğu dizilişe daha erken ulaşır. Bu, o dizilişin nerede olduğunu değiştirmez. Hücumcu-savunmacı oranı (K) tam olarak eskisi gibidir.",
+      analogy_limits:
+        "Futbolda daha hızlı top dolaşımı çoğu zaman sonucu gerçekten değiştirir, çünkü oyunu hücum lehine çevirebilir. Bir katalizör ise hiçbir zaman tek bir yönü kayırmaz: iki yönü eşit hızlandırır ve denge verimine dokunmaz. Ayrıca gerçek katalizörler belirli tepkimelere özgüdür ve zehirlenebilir; benzetme bunu yansıtmaz.",
+      example:
+        "Haber yönteminde demir katalizör, N₂/H₂/NH₃ karışımının makul bir sürede dengeye ulaşmasını sağlar. Aynı sıcaklık ve basınçta NH₃'ün denge yüzdesi katalizörle de katalizörsüz de aynıdır; denge yalnızca çok daha erken kurulur. Futboldaki karşılığı: tek pas oyunuyla takım dizilişini 15 yerine 6 saniyede alır, ama diziliş aynıdır.",
+      misconception:
+        "\"Katalizör ürün verimini artırır.\" Katalizör denge verimini değil, hızı artırır. Bir tesis katalizörle daha hızlı ürün üretebilir, ama denge bileşimi aynıdır.",
+      strength: 3,
+    },
+  ],
+  concept_map: {
+    nodes: [
+      { id: "n1", label: "Dinamik denge", type: "lecture" },
+      { id: "n2", label: "Denge sabiti K", type: "lecture" },
+      { id: "n3", label: "Denge kesri Q", type: "lecture" },
+      { id: "n4", label: "Le Chatelier ilkesi", type: "lecture" },
+      { id: "n5", label: "Katalizör", type: "lecture" },
+      { id: "n6", label: "Oyuncular yer değiştirirken diziliş korunur", type: "interest" },
+      { id: "n7", label: "Oyun planının hücum-savunma dengesi", type: "interest" },
+      { id: "n8", label: "Anlık diziliş, plana karşı", type: "interest" },
+      { id: "n9", label: "Yüklenmeyi karşılamak için kayma", type: "interest" },
+      { id: "n10", label: "Daha hızlı top dolaşımı", type: "interest" },
+    ],
+    edges: [
+      { from: "n1", to: "n6", label: "benzer" },
+      { from: "n2", to: "n7", label: "benzer" },
+      { from: "n3", to: "n8", label: "benzer" },
+      { from: "n4", to: "n9", label: "benzer" },
+      { from: "n5", to: "n10", label: "benzer" },
+      { from: "n2", to: "n1", label: "sayısal olarak ifade eder" },
+      { from: "n3", to: "n2", label: "ile karşılaştırılır" },
+      { from: "n4", to: "n3", label: "kaymalarını öngörür" },
+      { from: "n5", to: "n1", label: "ulaşmayı hızlandırır" },
+      { from: "n7", to: "n6", label: "belirler" },
+      { from: "n9", to: "n6", label: "yenisini oluşturur" },
+    ],
+  },
+  quiz: [
+    {
+      question: "Dinamik dengedeki bir sistemi hangi ifade doğru tanımlar?",
+      options: [
+        "İleri ve geri tepkimelerin ikisi de durmuştur.",
+        "İleri ve geri tepkimeler aynı hızla gerçekleşir.",
+        "Girenlerin ve ürünlerin derişimleri eşittir.",
+        "Yalnızca geri tepkime sürmektedir.",
+      ],
+      answer_index: 1,
+      explanation:
+        "İki tepkime de sürer, ancak eşit hızlarla; bu yüzden derişimler sabit kalır. Sabit, eşit demek değildir: karışım büyük ölçüde girenlerden ya da büyük ölçüde ürünlerden oluşabilir.",
+    },
+    {
+      question:
+        "H₂(g) + I₂(g) ⇌ 2HI(g) tepkimesinde denge derişimleri [H₂] = [I₂] = 0,10 M ve [HI] = 0,70 M'dır. Kc kaçtır?",
+      options: ["0,020", "7,0", "49", "70"],
+      answer_index: 2,
+      explanation:
+        "Kc = [HI]² / ([H₂][I₂]) = (0,70)² / (0,10 × 0,10) = 0,49 / 0,010 = 49. HI'nın önündeki 2 katsayısı üs olur; karesini almayı unutmak 70 sonucunu, ifadeyi ters çevirmek ise 0,020 sonucunu verir.",
+    },
+    {
+      question:
+        "Belirli bir sıcaklıkta bir tepkime için K = 49'dur. Q = 16 olan bir karışım hazırlanıyor. Bundan sonra ne olur?",
+      options: [
+        "Q 49'a yükselene kadar ileri tepkime baskın olur.",
+        "Geri tepkime baskın olur ve Q daha da düşer.",
+        "Hiçbir şey olmaz, çünkü sistem zaten dengededir.",
+        "K, 16'ya eşit olana kadar azalır.",
+      ],
+      answer_index: 0,
+      explanation:
+        "Q < K, dengeye göre ürünlerin gereğinden az olduğu anlamına gelir; bu yüzden Q = K olana kadar net bir ileri tepkime gerçekleşir. Sıcaklık değişmedikçe K'nın kendisi değişmez.",
+    },
+    {
+      question:
+        "N₂(g) + 3H₂(g) ⇌ 2NH₃(g) tepkimesi ileri yönde ekzotermiktir. Hangi değişiklik NH₃'ün denge verimini artırır?",
+      options: [
+        "Sıcaklığı yükseltmek",
+        "Katalizör eklemek",
+        "Karışımdan N₂ uzaklaştırmak",
+        "Basıncı artırmak",
+      ],
+      answer_index: 3,
+      explanation:
+        "Yüksek basınç, daha az gaz molekülü olan tarafı destekler (4 mol gaz 2 mol gaza dönüşür). Sıcaklığı yükseltmek endotermik geri tepkimeyi destekler, katalizör verimi değiştirmez, N₂ uzaklaştırmak ise dengeyi geriye, girenlere doğru kaydırır.",
+    },
+    {
+      question: "Tersinir bir tepkimeye katalizör eklemenin etkisi nedir?",
+      options: [
+        "K'yı artırır, bu yüzden daha fazla ürün oluşur.",
+        "İki yönü de eşit hızlandırır, bu yüzden dengeye aynı bileşimle daha çabuk ulaşılır.",
+        "Yalnızca ileri tepkimeyi hızlandırır.",
+        "Dengeyi daha az gaz molekülü olan tarafa kaydırır.",
+      ],
+      answer_index: 1,
+      explanation:
+        "Katalizör, ileri ve geri tepkimelerin aktifleşme enerjisini aynı ölçüde düşürür. Dengeye daha hızlı ulaşılır, ama K ve denge bileşimi değişmez.",
+    },
+  ],
+  next_steps: [
+    "Bir maçın 15 dakikasını taktik (geniş açı) kamerasından izleyin ve dakikada bir, her takımın topun önünde kaç saha oyuncusu olduğunu not edin. Oturmuş oyunda bu sayının ne kadar sabit kaldığına ve hangi olayların onu bozduğuna bakın.",
+    "Üst düzey takımların hücum ederken topun gerisinde kaç oyuncu bırakacağına karar verme biçimi olan rest defence (geride kalan savunma yapısı) ve karşı pres hakkında okuyun; her fikri dinamik denge, K ya da Q ile eşleştirin.",
+    "Bir kırmızı kartın ya da taktik bir oyuncu değişikliğinin seyrini değiştirdiği bir maç seçin. Eski dengeyi, bozucu etkiyi ve takımın oturduğu yeni dizilişi anlatın; ardından Le Chatelier ilkesiyle yapılan karşılaştırmanın nerede tutup nerede tutmadığını belirtin.",
   ],
 };

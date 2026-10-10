@@ -20,3 +20,6 @@ export const DEFAULT_LEVEL = "undergraduate";
 
 /** sessionStorage key the form writes the generated report to and /report reads. */
 export const REPORT_STORAGE_KEY = "bridge:report";
+
+/** sessionStorage key for "true" when the stored report came from demo mode (X-Bridge-Demo header). */
+export const DEMO_FLAG_STORAGE_KEY = "bridge:demo";
