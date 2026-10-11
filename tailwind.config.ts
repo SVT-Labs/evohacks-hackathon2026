@@ -1,5 +1,8 @@
 import type { Config } from "tailwindcss";
 
+/** A colour token from app/globals.css, with Tailwind's opacity modifier support. */
+const token = (name: string) => `rgb(var(--${name}) / <alpha-value>)`;
+
 const config: Config = {
   content: [
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
@@ -8,9 +11,25 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        // "Bridge Symbols" covers the few science glyphs the text fonts lack (app/globals.css).
+        serif: ["var(--font-serif)", "Bridge Symbols", "Georgia", "serif"],
+        sans: ["var(--font-sans)", "Bridge Symbols", "system-ui", "sans-serif"],
+        mono: ["var(--font-mono)", "Bridge Symbols", "ui-monospace", "monospace"],
+      },
       colors: {
-        background: "var(--background)",
-        foreground: "var(--foreground)",
+        background: token("background"),
+        foreground: token("foreground"),
+        card: token("card"),
+        muted: token("muted"),
+        border: token("border"),
+        lecture: token("lecture"),
+        interest: token("interest"),
+        "on-lecture": token("on-lecture"),
+        "interest-ink": token("interest-ink"),
+        highlight: token("highlight"),
+        danger: token("danger"),
+        success: token("success"),
       },
     },
   },

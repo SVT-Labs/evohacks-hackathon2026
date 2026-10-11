@@ -2,19 +2,75 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * The look is a lecture notebook: ink-blue for the lecture side, the red of a
+ * notebook margin for the interest side, and highlighter yellow for the one
+ * thing a student would mark (where an analogy breaks). Light and dark follow
+ * prefers-color-scheme; the PDF keeps its own fixed light palette in
+ * components/ReportPDF.tsx.
+ *
+ * Tokens are RGB channels so Tailwind's opacity modifiers work (bg-lecture/10).
+ */
 :root {
-  --background: #f9fafb;
-  --foreground: #171717;
+  --background: 246 246 243;
+  --foreground: 27 36 51;
+  --card: 255 255 255;
+  --muted: 88 97 112;
+  --border: 214 218 212;
+  /* Lecture side (fountain-pen blue) and interest side (margin red). */
+  --lecture: 31 78 140;
+  --interest: 181 67 47;
+  /* Text on a lecture-coloured fill, and interest-coloured text that passes AA. */
+  --on-lecture: 255 255 255;
+  --interest-ink: 154 54 36;
+  /* Highlighter: a background for marked text, never a text colour. */
+  --highlight: 255 231 140;
+  --danger: 180 35 24;
+  --success: 30 122 70;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: 18 22 28;
+    --foreground: 232 230 225;
+    --card: 26 32 41;
+    --muted: 163 169 179;
+    --border: 48 56 68;
+    --lecture: 127 167 224;
+    --interest: 229 138 114;
+    --on-lecture: 18 22 28;
+    --interest-ink: 240 160 138;
+    --highlight: 92 77 23;
+    --danger: 242 135 127;
+    --success: 108 194 143;
+  }
+}
+
+/*
+ * Work Sans and Young Serif lack a few science symbols (⇌, Δ). The browser
+ * fetches the DejaVu file only when a page actually uses one of these.
+ */
+@font-face {
+  font-family: "Bridge Symbols";
+  src: url("/fonts/DejaVuSans.ttf") format("truetype");
+  unicode-range: U+0394, U+2190-21FF, U+2200-22FF, U+2070-209F;
+  font-display: swap;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  color: rgb(var(--foreground));
+  background: rgb(var(--background));
+  font-family: var(--font-sans), "Bridge Symbols", system-ui, sans-serif;
+  font-size: 1rem;
+  line-height: 1.6;
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+  .text-pretty {
+    text-wrap: pretty;
   }
 }
