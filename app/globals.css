@@ -17,6 +17,8 @@
   --card: 255 255 255;
   --muted: 88 97 112;
   --border: 214 218 212;
+  /* Edges of things you can click or type in: 3:1 against the page (WCAG 1.4.11), unlike quiet rules. */
+  --control: 132 140 148;
   /* Lecture side (fountain-pen blue) and interest side (margin red). */
   --lecture: 31 78 140;
   --interest: 181 67 47;
@@ -37,11 +39,12 @@
     --card: 26 32 41;
     --muted: 163 169 179;
     --border: 48 56 68;
+    --control: 104 116 132;
     --lecture: 127 167 224;
     --interest: 229 138 114;
     --on-lecture: 18 22 28;
     --interest-ink: 240 160 138;
-    --highlight: 92 77 23;
+    --highlight: 110 86 16;
     --danger: 242 135 127;
     --success: 108 194 143;
   }
@@ -72,5 +75,27 @@ body {
   }
   .text-pretty {
     text-wrap: pretty;
+  }
+}
+
+/* Printing a report: always the light palette on white paper, whatever the screen theme. */
+@media print {
+  :root {
+    --background: 255 255 255;
+    --foreground: 27 36 51;
+    --card: 255 255 255;
+    --muted: 88 97 112;
+    --border: 214 218 212;
+    --control: 132 140 148;
+    --lecture: 31 78 140;
+    --interest: 181 67 47;
+    --interest-ink: 154 54 36;
+    --highlight: 255 231 140;
+    --success: 30 122 70;
+    --danger: 180 35 24;
+  }
+  body {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
 }

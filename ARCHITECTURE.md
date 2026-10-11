@@ -218,7 +218,7 @@ English sample is also what demo mode returns.
 ## Design system
 
 - **Tokens** (`app/globals.css`, exposed through `tailwind.config.ts`): `background`, `foreground`,
-  `card`, `muted`, `border`, `lecture` (ink blue), `interest` (notebook-margin red), `interest-ink`,
+  `card`, `muted`, `border` (quiet rules), `control` (edges of inputs and buttons, 3:1 against the page), `lecture` (ink blue), `interest` (notebook-margin red), `interest-ink`,
   `on-lecture`, `highlight` (highlighter yellow, a background only), `danger`, `success`. Each is an
   RGB triple, so opacity modifiers work; dark values switch under `prefers-color-scheme: dark`.
 - **Fonts** (self-hosted, OFL): Young Serif for headings, Work Sans for UI and body, IBM Plex Mono for

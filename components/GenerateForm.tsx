@@ -13,12 +13,13 @@
  */
 import { motion } from "motion/react";
 import { useRouter } from "next/navigation";
-import { useRef, useState, type DragEvent, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import LoadingSteps from "@/components/LoadingSteps";
 import {
   DEFAULT_LEVEL,
   DEMO_FLAG_STORAGE_KEY,
+  FORM_DRAFT_STORAGE_KEY,
   MAX_FILE_BYTES,
   MAX_INTEREST_CHARS,
   MIN_NOTES_CHARS,
@@ -52,11 +53,11 @@ const press = "transition-[transform,background-color,border-color,color] durati
 // text-base keeps iOS Safari from zooming the page when a field gets focus.
 const fieldClass = `w-full rounded-md border bg-card px-3 py-2.5 text-base placeholder:text-muted/80 disabled:opacity-60 ${focusRing}`;
 const tabClass = `relative flex-1 rounded-sm px-0.5 pb-3 pt-1 text-sm font-bold text-muted transition-colors hover:text-foreground peer-checked:text-foreground peer-disabled:cursor-not-allowed ${peerFocusRing}`;
-const tileClass = `flex min-h-11 flex-1 items-center justify-center rounded-md border border-border px-2 py-2 text-center text-sm ${press} hover:border-foreground/40 peer-checked:border-foreground/40 peer-checked:bg-highlight peer-checked:font-bold peer-enabled:active:translate-y-px peer-disabled:cursor-not-allowed ${peerFocusRing}`;
+const tileClass = `flex min-h-11 flex-1 items-center justify-center rounded-md border border-control px-2 py-2 text-center text-sm ${press} hover:border-foreground/40 peer-checked:border-foreground/40 peer-checked:bg-highlight peer-checked:font-bold peer-enabled:active:translate-y-px peer-disabled:cursor-not-allowed ${peerFocusRing}`;
 // 0.8125rem is the segmented-control size; it keeps the three levels on one row at 360px.
 const segmentClass = `relative flex flex-1 items-center justify-center rounded py-2 text-center text-[0.8125rem] leading-tight text-muted transition-colors hover:text-foreground peer-checked:text-foreground peer-disabled:cursor-not-allowed ${peerFocusRing}`;
 // Segments grow from their content width; if a large text setting still overflows, a label wraps instead.
-const segmentGroupClass = "flex rounded-md border border-border p-0.5 *:flex-auto";
+const segmentGroupClass = "flex rounded-md border border-control p-0.5 *:flex-auto";
 const segmentIndicatorClass = "absolute inset-0 rounded bg-foreground/10";
 const tabIndicator = { layoutId: "notes-tab-underline", className: "absolute inset-x-0 -bottom-px h-0.5 bg-foreground" };
 const legendClass = "mb-3 text-sm font-bold";
@@ -181,6 +182,37 @@ export default function GenerateForm() {
   const [errors, setErrors] = useState<Errors>({});
   const [dragOver, setDragOver] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // False until the saved draft is read, so the first render's defaults never overwrite it.
+  const [draftRead, setDraftRead] = useState(false);
+
+  // Keep what the student typed through a refresh or Back. A chosen PDF cannot be
+  // stored, so only the text inputs and choices come back.
+  useEffect(() => {
+    try {
+      const draft = JSON.parse(sessionStorage.getItem(FORM_DRAFT_STORAGE_KEY) ?? "null");
+      if (draft && typeof draft === "object") {
+        if (draft.tab === "file" || draft.tab === "text") setTab(draft.tab);
+        if (typeof draft.text === "string") setText(draft.text);
+        if (typeof draft.chip === "string" && INTERESTS.includes(draft.chip)) setChip(draft.chip);
+        if (typeof draft.custom === "string") setCustom(draft.custom.slice(0, MAX_INTEREST_CHARS));
+        if (LEVELS.includes(draft.level)) setLevel(draft.level);
+        if ((LANGUAGES as readonly string[]).includes(draft.language)) setLanguage(draft.language);
+      }
+    } catch {
+      // Blocked or unreadable storage just means starting with an empty form.
+    }
+    setDraftRead(true);
+  }, []);
+
+  useEffect(() => {
+    if (!draftRead) return;
+    try {
+      sessionStorage.setItem(FORM_DRAFT_STORAGE_KEY, JSON.stringify({ tab, text, chip, custom, level, language }));
+    } catch {
+      // Not saving a draft is harmless.
+    }
+  }, [draftRead, tab, text, chip, custom, level, language]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
@@ -323,7 +355,7 @@ export default function GenerateForm() {
                       ? "border-lecture bg-lecture/5"
                       : errors.file
                         ? "border-danger bg-danger/5"
-                        : "border-border hover:border-lecture/50"
+                        : "border-control hover:border-lecture"
                   }`}
                 >
                   <svg
@@ -388,7 +420,7 @@ export default function GenerateForm() {
                   placeholder="Paste the text of your lecture notes here"
                   aria-invalid={errors.text ? true : undefined}
                   aria-describedby="notes-text-count notes-text-error"
-                  className={`${fieldClass} resize-y ${errors.text ? "border-danger" : "border-border"}`}
+                  className={`${fieldClass} resize-y ${errors.text ? "border-danger" : "border-control"}`}
                 />
                 <div className="flex flex-wrap items-start justify-between gap-x-3">
                   <FieldError id="notes-text-error" message={errors.text} />
@@ -442,7 +474,7 @@ export default function GenerateForm() {
             placeholder="e.g. chess openings, K-pop, baking"
             aria-invalid={errors.interest ? true : undefined}
             aria-describedby="interest-error"
-            className={`mt-1.5 ${fieldClass} ${errors.interest ? "border-danger" : "border-border"}`}
+            className={`mt-1.5 ${fieldClass} ${errors.interest ? "border-danger" : "border-control"}`}
           />
           <FieldError id="interest-error" message={errors.interest} />
         </fieldset>
@@ -512,6 +544,9 @@ export default function GenerateForm() {
             </svg>
           )}
         </button>
+        <p className="text-center text-sm text-muted">
+          Takes up to a minute. Your report stays in this browser tab.
+        </p>
       </fieldset>
     </form>
   );

@@ -146,6 +146,9 @@ const s = StyleSheet.create({
   answer: { marginBottom: 12 },
   answerHead: { fontWeight: 700, marginBottom: 2 },
   step: { marginBottom: 8 },
+  contentsHead: { fontSize: 13, fontWeight: 700, marginBottom: 8, paddingTop: 16, borderTopWidth: 0.75, borderTopColor: C.hairline },
+  contentsItem: { fontWeight: 700, marginTop: 6 },
+  contentsSub: { marginTop: 2, paddingLeft: 14, color: C.muted },
 });
 
 type Style = Styles[string];
@@ -293,6 +296,23 @@ export default function ReportPDF({ report }: { report: Report }) {
       <ContentPage L={L}>
         <Text style={s.h1}>{L.summary}</Text>
         <Text>{report.summary}</Text>
+
+        {/* What the rest of the document holds, so the page is a real start rather than a lone paragraph. */}
+        <Text style={[s.contentsHead, s.sectionGap]}>{L.inThisReport}</Text>
+        <Text style={s.contentsItem}>
+          {L.concepts} ({report.concepts.length})
+        </Text>
+        {report.concepts.map((concept, i) => (
+          <Text key={concept.id} style={s.contentsSub}>
+            {i + 1}. {concept.name}
+          </Text>
+        ))}
+        <Text style={s.contentsItem}>{L.conceptMap}</Text>
+        <Text style={s.contentsItem}>
+          {L.quiz} ({L.questions(report.quiz.length)})
+        </Text>
+        <Text style={s.contentsItem}>{L.answerKey}</Text>
+        <Text style={s.contentsItem}>{L.nextSteps}</Text>
       </ContentPage>
 
       {report.concepts.map((concept, index) => (

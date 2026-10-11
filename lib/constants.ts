@@ -23,3 +23,6 @@ export const REPORT_STORAGE_KEY = "bridge:report";
 
 /** sessionStorage key for "true" when the stored report came from demo mode (X-Bridge-Demo header). */
 export const DEMO_FLAG_STORAGE_KEY = "bridge:demo";
+
+/** sessionStorage key for the landing form's unsent inputs, so a refresh or Back keeps them. */
+export const FORM_DRAFT_STORAGE_KEY = "bridge:draft";

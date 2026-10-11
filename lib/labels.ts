@@ -38,6 +38,15 @@ export interface ReportLabels {
   makeAnother: string;
   demoNote: string;
   pageOf: (page: number, total: number) => string;
+  onThisPage: string;
+  /** Shown once every quiz question is answered. */
+  quizScore: (correct: number, total: number) => string;
+  tryAgain: string;
+  /** Confirms a finished download. */
+  pdfSaved: (fileName: string) => string;
+  /** The PDF summary page's list of what follows. */
+  inThisReport: string;
+  questions: (count: number) => string;
 }
 
 export const LABELS: Record<Language, ReportLabels> = {
@@ -70,6 +79,12 @@ export const LABELS: Record<Language, ReportLabels> = {
     makeAnother: "Make another",
     demoNote: "Demo mode: sample report",
     pageOf: (page, total) => `page ${page} of ${total}`,
+    onThisPage: "On this page",
+    quizScore: (correct, total) => `${correct} of ${total} correct`,
+    tryAgain: "Try again",
+    pdfSaved: (fileName) => `Saved ${fileName}`,
+    inThisReport: "In this report",
+    questions: (count) => `${count} questions`,
   },
   tr: {
     locale: "tr-TR",
@@ -100,6 +115,12 @@ export const LABELS: Record<Language, ReportLabels> = {
     makeAnother: "Yenisini oluştur",
     demoNote: "Demo modu: örnek rapor",
     pageOf: (page, total) => `sayfa ${page} / ${total}`,
+    onThisPage: "Bu sayfada",
+    quizScore: (correct, total) => `${total} sorudan ${correct} doğru`,
+    tryAgain: "Yeniden dene",
+    pdfSaved: (fileName) => `${fileName} kaydedildi`,
+    inThisReport: "Bu raporda",
+    questions: (count) => `${count} soru`,
   },
 };
 

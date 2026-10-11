@@ -23,6 +23,7 @@ const config: Config = {
         card: token("card"),
         muted: token("muted"),
         border: token("border"),
+        control: token("control"),
         lecture: token("lecture"),
         interest: token("interest"),
         "on-lecture": token("on-lecture"),

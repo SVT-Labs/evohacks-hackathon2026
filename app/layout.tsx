@@ -23,9 +23,21 @@ const mono = localFont({
   weight: "400",
 });
 
+const description =
+  "Upload your lecture notes, name something you love, and get every key concept explained through it, with a concept map, a quiz and a PDF.";
+
 export const metadata: Metadata = {
+  // Absolute URLs for the share card: the deployment's own address on Vercel, localhost otherwise.
+  metadataBase: new URL(process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000"),
   title: "Bridge — lecture notes, explained through what you love",
-  description: "Lecture notes explained through the things you already love.",
+  description,
+  openGraph: {
+    title: "Bridge — lecture notes, explained through what you love",
+    description,
+    siteName: "Bridge",
+    type: "website",
+  },
+  twitter: { card: "summary_large_image" },
 };
 
 export default function RootLayout({

@@ -14,6 +14,7 @@
 import { motion } from "motion/react";
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { flushSync } from "react-dom";
 import ConceptMapDiagram from "@/components/ConceptMapDiagram";
 import { DEMO_FLAG_STORAGE_KEY, REPORT_STORAGE_KEY } from "@/lib/constants";
 import { LABELS, formatReportDate, optionLetter, type ReportLabels } from "@/lib/labels";
@@ -26,7 +27,7 @@ const column = "mx-auto w-full max-w-3xl px-4 sm:px-6";
 // No display class here, so a caller can add `hidden md:inline-flex` without two conflicting ones.
 const buttonBase = `h-9 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 text-sm font-bold transition-[transform,background-color,border-color,color] duration-100 active:translate-y-px disabled:cursor-wait disabled:opacity-70 ${focusRing}`;
 const primaryButton = `inline-flex ${buttonBase} bg-lecture text-on-lecture hover:bg-lecture/90`;
-const outlineLook = `${buttonBase} border border-border bg-card hover:border-lecture hover:text-lecture`;
+const outlineLook = `${buttonBase} border border-control bg-card hover:border-lecture hover:text-lecture`;
 const textLook = `${buttonBase} text-lecture underline-offset-4 hover:underline`;
 const textLink = `rounded-sm font-bold text-lecture underline decoration-1 underline-offset-4 hover:decoration-2 ${focusRing}`;
 
@@ -35,6 +36,7 @@ const icons = {
   check: "m4 10.5 4 4 8-9",
   cross: "m5 5 10 10M15 5 5 15",
   spinner: "M10 3a7 7 0 1 1-7 7",
+  plus: "M10 4v12M4 10h12",
 };
 
 function Icon({ d, spin = false }: { d: string; spin?: boolean }) {
@@ -70,7 +72,7 @@ function pdfFileName(title: string): string {
 /** Full-width translucent bar; `children` sit under the h-14 row (the PDF error). */
 function TopBar({ actions, children }: { actions?: ReactNode; children?: ReactNode }) {
   return (
-    <header className="sticky top-0 z-10 border-b border-border bg-background/80 backdrop-blur [@media(prefers-reduced-transparency:reduce)]:bg-background">
+    <header className="sticky top-0 z-10 border-b print:hidden border-border bg-background/80 backdrop-blur [@media(prefers-reduced-transparency:reduce)]:bg-background">
       <div className={`${column} flex h-14 items-center justify-between gap-3`}>
         <Link href="/" className={`rounded-sm font-serif text-xl leading-none ${focusRing}`}>
           Bridge
@@ -84,7 +86,7 @@ function TopBar({ actions, children }: { actions?: ReactNode; children?: ReactNo
 
 function Section({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   return (
-    <section aria-labelledby={`${id}-heading`} className="mt-12 border-t border-border pt-8">
+    <section id={id} aria-labelledby={`${id}-heading`} className="mt-12 border-t border-border pt-8">
       <h2 id={`${id}-heading`} className="mb-6 font-serif text-2xl leading-tight tracking-[-0.01em]">
         {title}
       </h2>
@@ -159,8 +161,19 @@ function ConceptArticle({ concept, labels }: { concept: Concept; labels: ReportL
   );
 }
 
-function QuizCard({ item, number, labels }: { item: QuizQuestion; number: number; labels: ReportLabels }) {
-  const [chosen, setChosen] = useState<number | null>(null);
+function QuizCard({
+  item,
+  number,
+  labels,
+  chosen,
+  onChoose,
+}: {
+  item: QuizQuestion;
+  number: number;
+  labels: ReportLabels;
+  chosen: number | null;
+  onChoose: (index: number) => void;
+}) {
   const answered = chosen !== null;
   const right = chosen === item.answer_index;
 
@@ -174,7 +187,7 @@ function QuizCard({ item, number, labels }: { item: QuizQuestion; number: number
           const isAnswer = index === item.answer_index;
           const isWrongPick = index === chosen && !isAnswer;
           const tone = !answered
-            ? "border-border hover:border-lecture"
+            ? "border-control hover:border-lecture"
             : isAnswer
               ? "border-success bg-success/10"
               : isWrongPick
@@ -192,7 +205,7 @@ function QuizCard({ item, number, labels }: { item: QuizQuestion; number: number
                 id={`quiz-${number}-option-${optionLetter(index).toLowerCase()}`}
                 type="button"
                 disabled={answered}
-                onClick={() => setChosen(index)}
+                onClick={() => onChoose(index)}
                 className={`flex w-full items-start gap-3 rounded-md border px-3 py-2.5 text-left transition-[transform,background-color,border-color,color] duration-100 active:translate-y-px disabled:cursor-default ${tone} ${focusRing}`}
               >
                 <span
@@ -227,6 +240,82 @@ function QuizCard({ item, number, labels }: { item: QuizQuestion; number: number
   );
 }
 
+const SECTIONS = ["concepts", "concept-map", "quiz", "next-steps"] as const;
+type SectionId = (typeof SECTIONS)[number];
+
+/**
+ * "On this page": a fixed list beside the column on wide screens that marks the
+ * section being read, and a plain row of links under the summary elsewhere.
+ */
+function SectionNav({ labels }: { labels: ReportLabels }) {
+  const [current, setCurrent] = useState<SectionId>("concepts");
+  const names: Record<SectionId, string> = {
+    concepts: labels.concepts,
+    "concept-map": labels.conceptMap,
+    quiz: labels.quiz,
+    "next-steps": labels.nextSteps,
+  };
+
+  useEffect(() => {
+    // A section counts as current while it crosses a band near the top of the screen.
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.filter((entry) => entry.isIntersecting);
+        if (visible.length) setCurrent(visible[0].target.id as SectionId);
+      },
+      { rootMargin: "-20% 0px -70% 0px" },
+    );
+    SECTIONS.forEach((id) => {
+      const element = document.getElementById(id);
+      if (element) observer.observe(element);
+    });
+    return () => observer.disconnect();
+  }, []);
+
+  const link = (id: SectionId, wide: boolean) => (
+    <a
+      href={`#${id}`}
+      aria-current={wide && current === id ? "location" : undefined}
+      className={`rounded-sm ${focusRing} ${
+        wide
+          ? `block border-l py-1 pl-3 text-sm ${current === id ? "border-foreground font-bold text-foreground" : "border-border text-muted hover:text-foreground"}`
+          : "font-bold text-lecture underline decoration-1 underline-offset-4 hover:decoration-2"
+      }`}
+    >
+      {names[id]}
+    </a>
+  );
+
+  return (
+    <>
+      <nav
+        aria-label={labels.onThisPage}
+        className="fixed left-[max(1rem,calc(50%-24rem-13rem))] top-28 hidden w-44 print:hidden xl:block"
+      >
+        <p className="mb-2 text-sm font-bold">{labels.onThisPage}</p>
+        <ul>
+          {SECTIONS.map((id) => (
+            <li key={id}>{link(id, true)}</li>
+          ))}
+        </ul>
+      </nav>
+      <nav aria-label={labels.onThisPage} className="mt-8 text-sm print:hidden xl:hidden">
+        <span className="text-muted">{labels.onThisPage}: </span>
+        {SECTIONS.map((id, index) => (
+          <span key={id}>
+            {index > 0 && (
+              <span aria-hidden="true" className="text-muted">
+                {" · "}
+              </span>
+            )}
+            {link(id, false)}
+          </span>
+        ))}
+      </nav>
+    </>
+  );
+}
+
 /**
  * The report itself, with one shared PDF state for the bar, the page end and
  * the preview. The PDF code is loaded only on click, so it stays out of the
@@ -237,6 +326,8 @@ function ReportDocument({ report, isDemo }: { report: Report; isDemo: boolean })
   const [busy, setBusy] = useState<"download" | "preview" | null>(null);
   const [failed, setFailed] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [saved, setSaved] = useState<string | null>(null);
+  const [answers, setAnswers] = useState<(number | null)[]>(() => report.quiz.map(() => null));
   const dialogRef = useRef<HTMLDialogElement>(null);
   const previewButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -245,10 +336,27 @@ function ReportDocument({ report, isDemo }: { report: Report; isDemo: boolean })
     if (previewUrl) dialogRef.current?.showModal();
   }, [previewUrl]);
 
+  // The "Saved ..." confirmation clears itself.
+  useEffect(() => {
+    if (!saved) return;
+    const timer = setTimeout(() => setSaved(null), 5000);
+    return () => clearTimeout(timer);
+  }, [saved]);
+
+  const answeredCount = answers.filter((answer) => answer !== null).length;
+  const correctCount = answers.filter((answer, index) => answer === report.quiz[index].answer_index).length;
+
+  function retryQuiz() {
+    // Re-render first: the options are disabled until the reset commits, and a disabled button cannot take focus.
+    flushSync(() => setAnswers(report.quiz.map(() => null)));
+    document.getElementById("quiz-1-option-a")?.focus();
+  }
+
   async function withPdf(kind: "download" | "preview", use: (url: string) => void) {
     if (busy) return;
     setBusy(kind);
     setFailed(false);
+    setSaved(null);
     try {
       const { reportPdfBlob } = await import("./ReportPDF");
       use(URL.createObjectURL(await reportPdfBlob(report)));
@@ -267,6 +375,7 @@ function ReportDocument({ report, isDemo }: { report: Report; isDemo: boolean })
       document.body.append(link);
       link.click();
       link.remove();
+      setSaved(link.download);
       // Not revoked at once: the browser may still be reading the blob after click() returns.
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
     });
@@ -311,15 +420,26 @@ function ReportDocument({ report, isDemo }: { report: Report; isDemo: boolean })
               {busy === "preview" && <Icon d={icons.spinner} spin />}
               {busy === "preview" ? labels.preparingPdf : labels.previewPdf}
             </button>
-            {/* Phones keep the bar to one button: the wordmark and the page end both lead home too. */}
-            <Link id="make-another-top" href="/" className={`hidden sm:inline-flex ${textLook}`}>
-              {labels.makeAnother}
+            {/* On phones only the icon fits beside Download; the name stays for screen readers. */}
+            <Link id="make-another-top" href="/" aria-label={labels.makeAnother} className={`inline-flex ${textLook}`}>
+              <span className="sm:hidden">
+                <Icon d={icons.plus} />
+              </span>
+              <span className="hidden sm:inline">{labels.makeAnother}</span>
             </Link>
           </>
         }
       >
         <p role="alert" className={failed ? `${column} pb-3 text-sm font-bold text-danger` : undefined}>
           {failed ? labels.pdfFailed : null}
+        </p>
+        <p role="status" className={saved ? `${column} flex items-center gap-2 pb-3 text-sm text-success` : undefined}>
+          {saved && (
+            <>
+              <Icon d={icons.check} />
+              {labels.pdfSaved(saved)}
+            </>
+          )}
         </p>
       </TopBar>
 
@@ -340,6 +460,7 @@ function ReportDocument({ report, isDemo }: { report: Report; isDemo: boolean })
           {report.title}
         </h1>
         <p className="text-pretty mt-6 max-w-[65ch] whitespace-pre-line text-lg leading-relaxed">{report.summary}</p>
+        <SectionNav labels={labels} />
 
         <Section id="concepts" title={labels.concepts}>
           <div className="divide-y divide-border">
@@ -356,8 +477,32 @@ function ReportDocument({ report, isDemo }: { report: Report; isDemo: boolean })
         <Section id="quiz" title={labels.quiz}>
           <div className="space-y-4">
             {report.quiz.map((item, index) => (
-              <QuizCard key={index} item={item} number={index + 1} labels={labels} />
+              <QuizCard
+                key={index}
+                item={item}
+                number={index + 1}
+                labels={labels}
+                chosen={answers[index]}
+                onChoose={(choice) =>
+                  setAnswers((current) => current.map((answer, i) => (i === index ? choice : answer)))
+                }
+              />
             ))}
+          </div>
+          <div aria-live="polite">
+            {answeredCount === report.quiz.length && (
+              <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-card px-5 py-4">
+                <p className="font-serif text-xl">{labels.quizScore(correctCount, report.quiz.length)}</p>
+                <button
+                  id="quiz-try-again"
+                  type="button"
+                  onClick={retryQuiz}
+                  className={`inline-flex print:hidden ${outlineLook}`}
+                >
+                  {labels.tryAgain}
+                </button>
+              </div>
+            )}
           </div>
         </Section>
 
@@ -371,7 +516,7 @@ function ReportDocument({ report, isDemo }: { report: Report; isDemo: boolean })
           </ol>
         </Section>
 
-        <footer className="mt-12 flex flex-wrap gap-3 border-t border-border pt-8">
+        <footer className="mt-12 flex flex-wrap gap-3 border-t border-border pt-8 print:hidden">
           {downloadButton("bottom")}
           <Link id="make-another-bottom" href="/" className={`inline-flex ${outlineLook}`}>
             {labels.makeAnother}
