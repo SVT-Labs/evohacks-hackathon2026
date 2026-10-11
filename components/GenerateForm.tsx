@@ -21,6 +21,7 @@ import {
   DEFAULT_LEVEL,
   DEMO_FLAG_STORAGE_KEY,
   FORM_DRAFT_STORAGE_KEY,
+  MAX_ATTACHED_PDF_PAGES,
   MAX_FILE_BYTES,
   MAX_INTEREST_CHARS,
   MIN_NOTES_CHARS,
@@ -418,7 +419,8 @@ export default function GenerateForm() {
                     </span>
                     {/* Hidden from the label's name; the input reads it through aria-describedby instead. */}
                     <span id="notes-file-hint" aria-hidden="true" className="mt-0.5 block text-sm text-muted">
-                      PDF only, up to {MAX_FILE_MB} MB
+                      PDF only, up to {MAX_FILE_MB} MB. Over {MAX_ATTACHED_PDF_PAGES} pages, only the typed
+                      text is read, not handwriting or images.
                     </span>
                   </span>
                 </label>
@@ -580,11 +582,6 @@ export default function GenerateForm() {
           className={`flex w-full items-center justify-center gap-2 rounded-md bg-lecture px-6 py-3.5 text-base font-bold text-on-lecture ${press} hover:bg-lecture/90 enabled:active:translate-y-px disabled:cursor-wait disabled:opacity-70 ${focusRing}`}
         >
           {loading ? "Building your Bridge…" : "Build my Bridge"}
-          {!loading && (
-            <svg aria-hidden="true" viewBox="0 0 20 20" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M4 10h12m0 0-4.5-4.5M16 10l-4.5 4.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          )}
         </button>
         <p className="text-center text-sm text-muted">
           Usually takes about half a minute. Your report stays in this browser tab.
