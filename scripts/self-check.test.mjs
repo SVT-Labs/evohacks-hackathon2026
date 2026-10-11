@@ -138,3 +138,17 @@ test("the PDF fonts have a glyph for every character in the samples and labels",
     assert.deepEqual(missing.map((cp) => String.fromCodePoint(cp)), [], `${FONT_FILES[i]} lacks glyphs`);
   });
 });
+
+test("the form's character count matches the server's cleaned notes", async () => {
+  const { serverLength } = await import("../lib/notes-length.ts");
+  const { cleanText } = await import("../lib/notes.ts");
+  const samples = [
+    "  Chemical   equilibrium\r\n\r\n\r\n\r\nLe   Chatelier  ",
+    "tabs\tand spaces \n \n line",
+    "\u0000nul byte",
+    SAMPLE_REPORT.summary,
+    "",
+  ];
+  for (const raw of samples) assert.equal(serverLength(raw), cleanText(raw).length, JSON.stringify(raw));
+});
+

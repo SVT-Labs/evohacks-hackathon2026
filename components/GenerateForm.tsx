@@ -16,6 +16,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import LoadingSteps from "@/components/LoadingSteps";
+import { serverLength } from "@/lib/notes-length";
 import {
   DEFAULT_LEVEL,
   DEMO_FLAG_STORAGE_KEY,
@@ -51,14 +52,14 @@ const peerFocusRing =
   "peer-focus-visible:ring-2 peer-focus-visible:ring-lecture peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-card";
 const press = "transition-[transform,background-color,border-color,color] duration-100";
 // text-base keeps iOS Safari from zooming the page when a field gets focus.
-const fieldClass = `w-full rounded-md border bg-card px-3 py-2.5 text-base placeholder:text-muted/80 disabled:opacity-60 ${focusRing}`;
+const fieldClass = `w-full rounded-md border bg-card px-3 py-2.5 text-base placeholder:text-muted disabled:opacity-60 ${focusRing}`;
 const tabClass = `relative flex-1 rounded-sm px-0.5 pb-3 pt-1 text-sm font-bold text-muted transition-colors hover:text-foreground peer-checked:text-foreground peer-disabled:cursor-not-allowed ${peerFocusRing}`;
 const tileClass = `flex min-h-11 flex-1 items-center justify-center rounded-md border border-control px-2 py-2 text-center text-sm ${press} hover:border-foreground/40 peer-checked:border-foreground/40 peer-checked:bg-highlight peer-checked:font-bold peer-enabled:active:translate-y-px peer-disabled:cursor-not-allowed ${peerFocusRing}`;
 // 0.8125rem is the segmented-control size; it keeps the three levels on one row at 360px.
-const segmentClass = `relative flex flex-1 items-center justify-center rounded py-2 text-center text-[0.8125rem] leading-tight text-muted transition-colors hover:text-foreground peer-checked:text-foreground peer-disabled:cursor-not-allowed ${peerFocusRing}`;
+const segmentClass = `relative flex flex-1 items-center justify-center rounded py-2 text-center text-[0.8125rem] leading-tight text-muted transition-colors hover:text-foreground peer-checked:font-bold peer-checked:text-on-lecture peer-disabled:cursor-not-allowed ${peerFocusRing}`;
 // Segments grow from their content width; if a large text setting still overflows, a label wraps instead.
 const segmentGroupClass = "flex rounded-md border border-control p-0.5 *:flex-auto";
-const segmentIndicatorClass = "absolute inset-0 rounded bg-foreground/10";
+const segmentIndicatorClass = "absolute inset-0 rounded bg-lecture";
 const tabIndicator = { layoutId: "notes-tab-underline", className: "absolute inset-x-0 -bottom-px h-0.5 bg-foreground" };
 const legendClass = "mb-3 text-sm font-bold";
 
@@ -116,7 +117,6 @@ function Choice(props: {
   checked: boolean;
   onSelect: () => void;
   className: string;
-  label?: string;
   indicator?: { layoutId: string; className: string };
   children: ReactNode;
 }) {
@@ -128,7 +128,6 @@ function Choice(props: {
         name={props.name}
         checked={props.checked}
         onChange={props.onSelect}
-        aria-label={props.label}
         className="peer sr-only"
       />
       <span className={props.className}>
@@ -215,11 +214,43 @@ export default function GenerateForm() {
   }, [draftRead, tab, text, chip, custom, level, language]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const formErrorRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
   const customRef = useRef<HTMLInputElement>(null);
 
-  const notesChars = text.trim().length;
+  const notesChars = serverLength(text);
   const interest = chip ?? custom.trim();
+
+  // False once the form unmounts, so a reply that lands after the student moved on is ignored.
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  // A drop that misses the dashed zone would make the browser open the PDF and lose the form.
+  useEffect(() => {
+    const keep = (event: globalThis.DragEvent) => {
+      if (event.dataTransfer?.types.includes("Files")) event.preventDefault();
+    };
+    window.addEventListener("dragover", keep);
+    window.addEventListener("drop", keep);
+    return () => {
+      window.removeEventListener("dragover", keep);
+      window.removeEventListener("drop", keep);
+    };
+  }, []);
+
+  function showFormError(message: string) {
+    // Re-enable the form first: focus cannot land inside a disabled fieldset.
+    flushSync(() => {
+      setErrors({ form: message });
+      setLoading(false);
+    });
+    formErrorRef.current?.focus();
+  }
 
   const clearError = (key: keyof Errors) => setErrors((current) => ({ ...current, [key]: undefined }));
 
@@ -240,7 +271,8 @@ export default function GenerateForm() {
   function handleDrop(event: DragEvent<HTMLLabelElement>) {
     event.preventDefault();
     setDragOver(false);
-    if (!loading) pickFile(event.dataTransfer.files[0]);
+    const files = Array.from(event.dataTransfer.files);
+    if (!loading) pickFile(files.find((dropped) => !fileProblem(dropped)) ?? files[0]);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -279,9 +311,9 @@ export default function GenerateForm() {
       requestReport(body),
       new Promise((resolve) => setTimeout(resolve, MIN_LOADING_MS)),
     ]);
+    if (!mounted.current) return; // the student left the page; do not pull them back to /report
     if ("error" in result) {
-      setErrors({ form: result.error });
-      setLoading(false);
+      showFormError(result.error);
       return;
     }
 
@@ -289,8 +321,7 @@ export default function GenerateForm() {
       sessionStorage.setItem(REPORT_STORAGE_KEY, JSON.stringify(result.report));
       sessionStorage.setItem(DEMO_FLAG_STORAGE_KEY, String(result.demo));
     } catch {
-      setErrors({ form: "Your browser blocked saving the report. Allow site storage and try again." });
-      setLoading(false);
+      showFormError("Your browser blocked saving the report. Allow site storage and try again.");
       return;
     }
     router.push("/report"); // stay in the loading state until the report page shows
@@ -333,7 +364,7 @@ export default function GenerateForm() {
                   id="notes-file"
                   accept="application/pdf,.pdf"
                   aria-invalid={errors.file ? true : undefined}
-                  aria-describedby="notes-file-hint notes-file-error"
+                  aria-describedby={`${file ? "notes-file-chosen " : ""}notes-file-hint notes-file-error`}
                   onChange={(event) => {
                     pickFile(event.target.files?.[0]);
                     event.target.value = ""; // so picking the same file again still fires onChange
@@ -388,7 +419,10 @@ export default function GenerateForm() {
 
                 {file && (
                   <div className="mt-3 flex items-center gap-3 rounded-md border border-border py-1.5 pl-3 pr-1.5">
-                    <p className="min-w-0 flex-1 truncate text-sm font-bold">{file.name}</p>
+                    <p id="notes-file-chosen" className="min-w-0 flex-1 truncate text-sm font-bold">
+                      <span className="sr-only">Chosen: </span>
+                      {file.name}
+                    </p>
                     <span className="shrink-0 font-mono text-xs text-muted">{formatSize(file.size)}</span>
                     <button
                       type="button"
@@ -509,11 +543,11 @@ export default function GenerateForm() {
                   name="language"
                   checked={language === code}
                   onSelect={() => setLanguage(code)}
-                  label={LANGUAGE_NAMES[code]}
                   className={`${segmentClass} px-4`}
                   indicator={{ layoutId: "language-selection", className: segmentIndicatorClass }}
                 >
                   {code.toUpperCase()}
+                  <span className="sr-only"> ({LANGUAGE_NAMES[code]})</span>
                 </Choice>
               ))}
             </div>
@@ -522,8 +556,10 @@ export default function GenerateForm() {
 
         {errors.form && (
           <div
+            ref={formErrorRef}
+            tabIndex={-1}
             role="alert"
-            className="flex items-start gap-2 rounded-md border border-danger/40 bg-danger/5 p-3 text-sm text-danger"
+            className={`flex items-start gap-2 rounded-md border border-danger/40 bg-danger/5 p-3 text-sm text-danger ${focusRing}`}
           >
             <AlertIcon />
             <p className="whitespace-pre-line">{errors.form}</p>

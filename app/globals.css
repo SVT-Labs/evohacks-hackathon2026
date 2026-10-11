@@ -99,3 +99,19 @@ body {
     -webkit-print-color-adjust: exact;
   }
 }
+
+/*
+ * Forced-colours modes (Windows High Contrast) remove box-shadow focus rings and
+ * background fills, so focus and the selected choice get system-coloured outlines.
+ */
+@media (forced-colors: active) {
+  :focus-visible,
+  input.peer:focus-visible + * {
+    outline: 2px solid CanvasText;
+    outline-offset: 2px;
+  }
+  input.peer:checked + * {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}

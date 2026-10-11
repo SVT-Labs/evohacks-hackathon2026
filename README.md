@@ -12,6 +12,8 @@ cp .env.example .env.local
 npm run dev
 ```
 
+`npm test` runs the self-checks in `scripts/self-check.test.mjs`. They load the TypeScript modules directly, so they need Node 22.18 or newer (Node 24 is what the project was built with); the app itself runs on any Node version Next.js 14 supports.
+
 Open http://localhost:3000. With `DEMO_MODE=true` in `.env.local` the app works without an API key and always returns the English sample report (whatever language is chosen), and the report page says it is a demo. To generate real reports, set `LLM_API_KEY` to an OpenAI key and `DEMO_MODE=false`, then restart the dev server.
 
 ## Environment

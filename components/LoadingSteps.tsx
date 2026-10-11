@@ -19,11 +19,17 @@ const SLOW_MS = 12_000;
 
 export default function LoadingSteps() {
   const [elapsed, setElapsed] = useState(0);
+  const [announce, setAnnounce] = useState(false);
 
   useEffect(() => {
+    // A live region that already holds text when it appears is not read; fill it a moment later.
+    const ready = setTimeout(() => setAnnounce(true), 100);
     const start = Date.now();
     const timer = setInterval(() => setElapsed(Date.now() - start), 250);
-    return () => clearInterval(timer);
+    return () => {
+      clearTimeout(ready);
+      clearInterval(timer);
+    };
   }, []);
 
   const step = Math.min(STEPS.length - 1, Math.floor(elapsed / STEP_MS));
@@ -69,11 +75,13 @@ export default function LoadingSteps() {
       </ol>
 
       <div className={`flex items-baseline justify-between gap-3 text-sm text-muted ${slow ? "mt-3" : ""}`}>
-        <p aria-live="polite">
-          <span className="sr-only">
-            Step {step + 1} of {STEPS.length}: {STEPS[step]}.
-          </span>
-          {slow && <span>Still working — long notes can take up to two minutes.</span>}
+        <p aria-live="polite" aria-atomic="true">
+          {announce && (
+            <span className="sr-only">
+              {`Step ${step + 1} of ${STEPS.length}: ${STEPS[step]}.`}
+            </span>
+          )}
+          {slow && <span>{" Still working — long notes can take up to two minutes."}</span>}
         </p>
         {slow && (
           <span aria-hidden="true" className="shrink-0 font-mono tabular-nums">
