@@ -14,6 +14,8 @@ export interface ReportLabels {
   summary: string;
   concepts: string;
   strength: string;
+  /** Spoken form of a 1-5 match strength, e.g. "Match strength 4 of 5". */
+  strengthOutOf: (value: number) => string;
   inTheLecture: string;
   analogy: string;
   analogyBreaks: string;
@@ -45,6 +47,7 @@ export const LABELS: Record<Language, ReportLabels> = {
     summary: "Summary",
     concepts: "Concepts",
     strength: "Match strength",
+    strengthOutOf: (value) => `Match strength ${value} of 5`,
     inTheLecture: "In the lecture",
     analogy: "Analogy",
     analogyBreaks: "Where the analogy breaks",
@@ -74,6 +77,7 @@ export const LABELS: Record<Language, ReportLabels> = {
     summary: "Özet",
     concepts: "Kavramlar",
     strength: "Eşleşme gücü",
+    strengthOutOf: (value) => `Eşleşme gücü: 5 üzerinden ${value}`,
     inTheLecture: "Derste",
     analogy: "Benzetme",
     analogyBreaks: "Benzetmenin yetersiz kaldığı yer",

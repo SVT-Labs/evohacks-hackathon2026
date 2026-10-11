@@ -1,179 +1,481 @@
 "use client";
 
 /**
- * Renders a Report: summary, concept cards, concept map, quiz and next steps.
+ * Renders a Report as a printed study handout: a sticky bar with the PDF
+ * actions, then the title and summary, concepts, concept map, quiz and next
+ * steps, each section opened by a rule rather than wrapped in a card.
  *
- * The report comes from sessionStorage (written by GenerateForm) or, when
- * `useSample` is set, from the built-in sample. This is a plain functional
- * layout; the concept map in particular is a list of edges, not yet a graph.
+ * The report is `sample` when the page passes one, otherwise the one
+ * GenerateForm saved in sessionStorage. Every fixed word comes from
+ * LABELS[report.language], the same dictionary the PDF uses; the loading and
+ * empty states stay English because there is no report language yet. Nothing
+ * animates on load, so a server-rendered sample is readable before hydration.
  */
+import { motion } from "motion/react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { REPORT_STORAGE_KEY } from "@/lib/constants";
-import { SAMPLE_REPORT } from "@/lib/sample";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import ConceptMapDiagram from "@/components/ConceptMapDiagram";
+import { DEMO_FLAG_STORAGE_KEY, REPORT_STORAGE_KEY } from "@/lib/constants";
+import { LABELS, formatReportDate, optionLetter, type ReportLabels } from "@/lib/labels";
 import { ReportSchema, type Concept, type QuizQuestion, type Report } from "@/lib/types";
 
-const cardClass = "rounded-lg border border-gray-200 bg-white p-5";
-const headingClass = "mb-3 text-xl font-semibold";
+const focusRing =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lecture focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+/** The document column; the sticky bar uses it too, so the wordmark lines up with the text. */
+const column = "mx-auto w-full max-w-3xl px-4 sm:px-6";
+// No display class here, so a caller can add `hidden md:inline-flex` without two conflicting ones.
+const buttonBase = `h-9 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 text-sm font-bold transition-[transform,background-color,border-color,color] duration-100 active:translate-y-px disabled:cursor-wait disabled:opacity-70 ${focusRing}`;
+const primaryButton = `inline-flex ${buttonBase} bg-lecture text-on-lecture hover:bg-lecture/90`;
+const outlineLook = `${buttonBase} border border-border bg-card hover:border-lecture hover:text-lecture`;
+const textLook = `${buttonBase} text-lecture underline-offset-4 hover:underline`;
+const textLink = `rounded-sm font-bold text-lecture underline decoration-1 underline-offset-4 hover:decoration-2 ${focusRing}`;
 
-function ConceptCard({ concept }: { concept: Concept }) {
-  const details = [
-    ["In the lecture", concept.lecture_explanation],
-    [concept.bridge_title, concept.bridge_explanation],
-    ["Analogy", concept.analogy],
-    ["Where the analogy breaks down", concept.analogy_limits],
-    ["Worked example", concept.example],
-    ["Common misconception", concept.misconception],
-  ];
+const icons = {
+  download: "M10 3v10m0 0-4-4m4 4 4-4M4 17h12",
+  check: "m4 10.5 4 4 8-9",
+  cross: "m5 5 10 10M15 5 5 15",
+  spinner: "M10 3a7 7 0 1 1-7 7",
+};
 
+function Icon({ d, spin = false }: { d: string; spin?: boolean }) {
   return (
-    <article className={cardClass}>
-      <div className="flex items-baseline justify-between gap-4">
-        <h3 className="text-lg font-semibold">{concept.name}</h3>
-        <span className="shrink-0 text-xs text-gray-500">Match strength {concept.strength}/5</span>
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={`size-4 shrink-0 ${spin ? "motion-safe:animate-spin" : ""}`}
+    >
+      <path d={d} />
+    </svg>
+  );
+}
+
+/** "Kimyasal Denge: Futbol" -> "kimyasal-denge-futbol.pdf". */
+function pdfFileName(title: string): string {
+  const slug = title
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/ı/g, "i")
+    .replace(/[^a-z0-9]+/g, "-")
+    .slice(0, 60)
+    .replace(/^-+|-+$/g, "");
+  return `${slug || "bridge-report"}.pdf`;
+}
+
+/** Full-width translucent bar; `children` sit under the h-14 row (the PDF error). */
+function TopBar({ actions, children }: { actions?: ReactNode; children?: ReactNode }) {
+  return (
+    <header className="sticky top-0 z-10 border-b border-border bg-background/80 backdrop-blur [@media(prefers-reduced-transparency:reduce)]:bg-background">
+      <div className={`${column} flex h-14 items-center justify-between gap-3`}>
+        <Link href="/" className={`rounded-sm font-serif text-xl leading-none ${focusRing}`}>
+          Bridge
+        </Link>
+        {actions && <div className="flex items-center gap-2">{actions}</div>}
       </div>
-      <dl className="mt-3 space-y-3 text-sm">
-        {details.map(([label, body]) => (
-          <div key={label}>
-            <dt className="font-medium text-indigo-700">{label}</dt>
-            <dd className="text-gray-700">{body}</dd>
-          </div>
+      {children}
+    </header>
+  );
+}
+
+function Section({ id, title, children }: { id: string; title: string; children: ReactNode }) {
+  return (
+    <section aria-labelledby={`${id}-heading`} className="mt-12 border-t border-border pt-8">
+      <h2 id={`${id}-heading`} className="mb-6 font-serif text-2xl leading-tight tracking-[-0.01em]">
+        {title}
+      </h2>
+      {children}
+    </section>
+  );
+}
+
+function Strength({ value, labels }: { value: number; labels: ReportLabels }) {
+  return (
+    <div
+      role="img"
+      aria-label={labels.strengthOutOf(value)}
+      className="flex shrink-0 items-center gap-2 text-sm text-muted"
+    >
+      <span>{labels.strength}</span>
+      <span className="font-mono text-foreground">{value}/5</span>
+      <span className="flex gap-1">
+        {[1, 2, 3, 4, 5].map((step) => (
+          <span
+            key={step}
+            className={`size-2.5 rounded-sm ${step <= value ? "bg-foreground/80" : "border border-border"}`}
+          />
         ))}
-      </dl>
+      </span>
+    </div>
+  );
+}
+
+function Field({ title, body }: { title: string; body: string }) {
+  return (
+    <div>
+      <h4 className="text-sm font-bold">{title}</h4>
+      <p className="mt-1 whitespace-pre-line">{body}</p>
+    </div>
+  );
+}
+
+function ConceptArticle({ concept, labels }: { concept: Concept; labels: ReportLabels }) {
+  return (
+    <article className="py-8 first:pt-0 last:pb-0">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+        <h3 className="min-w-0 break-words text-xl font-bold leading-snug">{concept.name}</h3>
+        <Strength value={concept.strength} labels={labels} />
+      </div>
+
+      {/* The two sides of the bridge, split by a rule once they sit side by side. */}
+      <div className="mt-5 grid gap-6 md:grid-cols-2 md:gap-0 md:divide-x md:divide-border">
+        <div className="md:pr-6">
+          <h4 className="text-sm font-bold text-lecture">{labels.inTheLecture}</h4>
+          <p className="mt-1 whitespace-pre-line">{concept.lecture_explanation}</p>
+        </div>
+        <div className="md:pl-6">
+          <h4 className="font-bold leading-snug text-interest-ink">{concept.bridge_title}</h4>
+          <p className="mt-1 whitespace-pre-line">{concept.bridge_explanation}</p>
+        </div>
+      </div>
+
+      <div className="mt-6 max-w-[68ch] space-y-5">
+        <Field title={labels.analogy} body={concept.analogy} />
+        {/* The one highlighted thing in a concept: what a student would mark in the margin. */}
+        <div>
+          <h4 className="text-sm font-bold">{labels.analogyBreaks}</h4>
+          <p className="mt-1 whitespace-pre-line rounded-sm bg-highlight px-3 py-2">{concept.analogy_limits}</p>
+        </div>
+      </div>
+      <div className="mt-5 grid gap-5 md:grid-cols-2 md:gap-6">
+        <Field title={labels.example} body={concept.example} />
+        <Field title={labels.misconception} body={concept.misconception} />
+      </div>
     </article>
   );
 }
 
-function QuizCard({ item, number }: { item: QuizQuestion; number: number }) {
+function QuizCard({ item, number, labels }: { item: QuizQuestion; number: number; labels: ReportLabels }) {
   const [chosen, setChosen] = useState<number | null>(null);
   const answered = chosen !== null;
+  const right = chosen === item.answer_index;
 
   return (
-    <div className={cardClass}>
-      <p className="font-medium">
-        {number}. {item.question}
-      </p>
-      <ul className="mt-3 space-y-2 text-sm">
+    <article className="rounded-md border border-border bg-card p-5">
+      <h3 className="font-bold leading-snug">
+        <span className="font-mono font-normal text-muted">{number}.</span> {item.question}
+      </h3>
+      <ul className="mt-4 space-y-2">
         {item.options.map((option, index) => {
-          const isCorrect = index === item.answer_index;
+          const isAnswer = index === item.answer_index;
+          const isWrongPick = index === chosen && !isAnswer;
           const tone = !answered
-            ? "border-gray-300 hover:border-indigo-400"
-            : isCorrect
-              ? "border-green-500 bg-green-50"
-              : index === chosen
-                ? "border-red-400 bg-red-50"
-                : "border-gray-200 text-gray-500";
+            ? "border-border hover:border-lecture"
+            : isAnswer
+              ? "border-success bg-success/10"
+              : isWrongPick
+                ? "border-danger bg-danger/10"
+                : "border-border text-muted";
+          const letterTone =
+            answered && isAnswer
+              ? "border-success text-success"
+              : isWrongPick
+                ? "border-danger text-danger"
+                : "border-border text-muted";
           return (
             <li key={index}>
               <button
+                id={`quiz-${number}-option-${optionLetter(index).toLowerCase()}`}
                 type="button"
                 disabled={answered}
                 onClick={() => setChosen(index)}
-                className={`w-full rounded-md border px-3 py-2 text-left ${tone}`}
+                className={`flex w-full items-start gap-3 rounded-md border px-3 py-2.5 text-left transition-[transform,background-color,border-color,color] duration-100 active:translate-y-px disabled:cursor-default ${tone} ${focusRing}`}
               >
-                {option}
+                <span
+                  className={`grid size-6 shrink-0 place-items-center rounded-sm border font-mono text-xs ${letterTone}`}
+                >
+                  {optionLetter(index)}
+                </span>
+                <span className="flex-1 pt-0.5">{option}</span>
+                {answered && (isAnswer || isWrongPick) && (
+                  <span className={`pt-1 ${isAnswer ? "text-success" : "text-danger"}`}>
+                    <Icon d={isAnswer ? icons.check : icons.cross} />
+                    <span className="sr-only">{isAnswer ? labels.correct : labels.incorrect}</span>
+                  </span>
+                )}
               </button>
             </li>
           );
         })}
       </ul>
-      {answered && <p className="mt-3 text-sm text-gray-700">{item.explanation}</p>}
+      <div aria-live="polite">
+        {answered && (
+          <div className="mt-4 rounded-md border border-border px-4 py-3">
+            <p className={`flex items-center gap-2 font-bold ${right ? "text-success" : "text-danger"}`}>
+              <Icon d={right ? icons.check : icons.cross} />
+              {right ? labels.correct : labels.incorrect}
+            </p>
+            <p className="mt-1 whitespace-pre-line">{item.explanation}</p>
+          </div>
+        )}
+      </div>
+    </article>
+  );
+}
+
+/**
+ * The report itself, with one shared PDF state for the bar, the page end and
+ * the preview. The PDF code is loaded only on click, so it stays out of the
+ * page's first download.
+ */
+function ReportDocument({ report, isDemo }: { report: Report; isDemo: boolean }) {
+  const labels = LABELS[report.language];
+  const [busy, setBusy] = useState<"download" | "preview" | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const previewButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Opened after the render that mounts the panel, so showModal() can focus its close button.
+  useEffect(() => {
+    if (previewUrl) dialogRef.current?.showModal();
+  }, [previewUrl]);
+
+  async function withPdf(kind: "download" | "preview", use: (url: string) => void) {
+    if (busy) return;
+    setBusy(kind);
+    setFailed(false);
+    try {
+      const { reportPdfBlob } = await import("./ReportPDF");
+      use(URL.createObjectURL(await reportPdfBlob(report)));
+    } catch {
+      setFailed(true);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const download = () =>
+    withPdf("download", (url) => {
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = pdfFileName(report.title);
+      document.body.append(link);
+      link.click();
+      link.remove();
+      // Not revoked at once: the browser may still be reading the blob after click() returns.
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    });
+
+  const preview = () => withPdf("preview", setPreviewUrl);
+
+  // Runs for the close button and for Escape alike.
+  function closePreview() {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(null);
+    previewButtonRef.current?.focus();
+  }
+
+  const downloadButton = (place: "top" | "bottom") => (
+    <button
+      id={`download-pdf-${place}`}
+      type="button"
+      onClick={download}
+      disabled={busy !== null}
+      className={primaryButton}
+    >
+      <Icon d={busy === "download" ? icons.spinner : icons.download} spin={busy === "download"} />
+      {busy === "download" ? labels.preparingPdf : labels.downloadPdf}
+    </button>
+  );
+
+  return (
+    <div lang={report.language}>
+      <TopBar
+        actions={
+          <>
+            {downloadButton("top")}
+            {/* A PDF in an iframe needs a desktop browser's built-in viewer, so phones only get Download. */}
+            <button
+              ref={previewButtonRef}
+              id="preview-pdf"
+              type="button"
+              onClick={preview}
+              disabled={busy !== null}
+              className={`hidden md:inline-flex ${outlineLook}`}
+            >
+              {busy === "preview" && <Icon d={icons.spinner} spin />}
+              {busy === "preview" ? labels.preparingPdf : labels.previewPdf}
+            </button>
+            {/* Phones keep the bar to one button: the wordmark and the page end both lead home too. */}
+            <Link id="make-another-top" href="/" className={`hidden sm:inline-flex ${textLook}`}>
+              {labels.makeAnother}
+            </Link>
+          </>
+        }
+      >
+        <p role="alert" className={failed ? `${column} pb-3 text-sm font-bold text-danger` : undefined}>
+          {failed ? labels.pdfFailed : null}
+        </p>
+      </TopBar>
+
+      {/* The scroll margin keeps a focused control from landing under the sticky bar. */}
+      <main className={`${column} pb-16 pt-10 sm:pt-14 [&_*]:scroll-mt-20`}>
+        {isDemo && (
+          <p role="status" className="mb-6 rounded-md border border-border bg-highlight/40 px-3 py-2 text-sm">
+            {labels.demoNote}
+          </p>
+        )}
+        <p className="text-sm text-muted">
+          {labels.bridgedTo}: <span className="font-bold text-interest-ink">{report.interest}</span>
+          <span aria-hidden="true"> · </span>
+          {/* Today's date, so the server and the browser can disagree around midnight. */}
+          <span suppressHydrationWarning>{formatReportDate(report.language)}</span>
+        </p>
+        <h1 className="mt-3 break-words text-balance font-serif text-[length:clamp(2.25rem,5vw,3.5rem)] leading-[1.05] tracking-[-0.02em]">
+          {report.title}
+        </h1>
+        <p className="text-pretty mt-6 max-w-[65ch] whitespace-pre-line text-lg leading-relaxed">{report.summary}</p>
+
+        <Section id="concepts" title={labels.concepts}>
+          <div className="divide-y divide-border">
+            {report.concepts.map((concept) => (
+              <ConceptArticle key={concept.id} concept={concept} labels={labels} />
+            ))}
+          </div>
+        </Section>
+
+        <Section id="concept-map" title={labels.conceptMap}>
+          <ConceptMapDiagram map={report.concept_map} labels={labels} />
+        </Section>
+
+        <Section id="quiz" title={labels.quiz}>
+          <div className="space-y-4">
+            {report.quiz.map((item, index) => (
+              <QuizCard key={index} item={item} number={index + 1} labels={labels} />
+            ))}
+          </div>
+        </Section>
+
+        <Section id="next-steps" title={labels.nextSteps}>
+          <ol className="max-w-[68ch] list-decimal space-y-3 pl-6 marker:font-mono marker:text-muted">
+            {report.next_steps.map((step, index) => (
+              <li key={index} className="pl-2">
+                {step}
+              </li>
+            ))}
+          </ol>
+        </Section>
+
+        <footer className="mt-12 flex flex-wrap gap-3 border-t border-border pt-8">
+          {downloadButton("bottom")}
+          <Link id="make-another-bottom" href="/" className={`inline-flex ${outlineLook}`}>
+            {labels.makeAnother}
+          </Link>
+        </footer>
+      </main>
+
+      <dialog
+        ref={dialogRef}
+        onClose={closePreview}
+        aria-labelledby="pdf-preview-title"
+        className="h-[90vh] w-[min(64rem,92vw)] bg-transparent p-0 text-foreground backdrop:bg-foreground/40"
+      >
+        {previewUrl && (
+          // Grows from the corner the Preview button sits in; under reduced motion only the fade is left.
+          <motion.div
+            initial={{ scale: 0.98, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: "spring", bounce: 0, duration: 0.25 }}
+            className="flex h-full origin-top-right flex-col overflow-hidden rounded-md border border-border bg-card"
+          >
+            <div className="flex items-center justify-between gap-4 border-b border-border px-4 py-3">
+              <h2 id="pdf-preview-title" className="truncate font-bold">
+                {labels.previewPdf}
+              </h2>
+              <button
+                id="close-pdf-preview"
+                type="button"
+                onClick={() => dialogRef.current?.close()}
+                className={`inline-flex ${outlineLook}`}
+              >
+                {labels.closePreview}
+              </button>
+            </div>
+            <iframe
+              src={previewUrl}
+              title={`${labels.previewPdf}: ${report.title}`}
+              className="min-h-0 w-full flex-1 bg-background"
+            />
+          </motion.div>
+        )}
+      </dialog>
     </div>
   );
 }
 
-export default function ReportView({ useSample }: { useSample: boolean }) {
+export default function ReportView({ sample }: { sample?: Report }) {
   // undefined: still reading sessionStorage. null: nothing usable was stored.
-  const [report, setReport] = useState<Report | null | undefined>(
-    useSample ? SAMPLE_REPORT : undefined,
-  );
+  const [report, setReport] = useState<Report | null | undefined>(sample);
+  const [isDemo, setIsDemo] = useState(false);
 
   useEffect(() => {
-    if (useSample) return;
+    if (sample) return;
     let stored: unknown = null;
+    let demo = false;
     try {
       stored = JSON.parse(sessionStorage.getItem(REPORT_STORAGE_KEY) ?? "null");
+      demo = sessionStorage.getItem(DEMO_FLAG_STORAGE_KEY) === "true";
     } catch {
       // Unreadable storage is treated the same as an empty one.
     }
     const parsed = ReportSchema.safeParse(stored);
     setReport(parsed.success ? parsed.data : null);
-  }, [useSample]);
+    setIsDemo(demo);
+  }, [sample]);
 
   if (report === undefined) {
-    return <p className="text-sm text-gray-500">Loading report…</p>;
+    return (
+      <>
+        <TopBar />
+        <main className={`${column} py-10 sm:py-14`}>
+          <p role="status" className="text-muted">
+            Loading report…
+          </p>
+        </main>
+      </>
+    );
   }
   if (report === null) {
     return (
-      <div className="space-y-3 text-sm">
-        <p>There is no report to show yet.</p>
-        <p>
-          <Link href="/" className="text-indigo-600 underline">
-            Create one
-          </Link>{" "}
-          or{" "}
-          <Link href="/report?sample=1" className="text-indigo-600 underline">
-            look at the sample report
-          </Link>
-          .
-        </p>
-      </div>
+      <>
+        <TopBar />
+        <main className={`${column} py-10 sm:py-14`}>
+          <h1 className="text-balance font-serif text-[length:clamp(2.25rem,5vw,3.5rem)] leading-[1.05] tracking-[-0.02em]">
+            No report yet
+          </h1>
+          <p className="text-pretty mt-5 max-w-[60ch] text-lg text-muted">
+            A report lives only in the browser tab that created it. Make a new one, or look at a sample.
+          </p>
+          <p className="mt-6 flex flex-wrap gap-x-6 gap-y-2">
+            <Link id="empty-create-report" href="/" className={textLink}>
+              Create a report
+            </Link>
+            <Link id="empty-sample-en" href="/report?sample=1" className={textLink}>
+              English sample
+            </Link>
+            <Link id="empty-sample-tr" href="/report?sample=tr" className={textLink}>
+              Turkish sample
+            </Link>
+          </p>
+        </main>
+      </>
     );
   }
 
-  const nodeLabels = new Map(report.concept_map.nodes.map((node) => [node.id, node.label]));
-
-  return (
-    <div className="space-y-10">
-      <header>
-        <p className="text-sm text-gray-500">Bridged to: {report.interest}</p>
-        <h1 className="mt-1 text-3xl font-bold">{report.title}</h1>
-        <p className="mt-3 text-gray-700">{report.summary}</p>
-      </header>
-
-      <section>
-        <h2 className={headingClass}>Concepts</h2>
-        <div className="space-y-4">
-          {report.concepts.map((concept) => (
-            <ConceptCard key={concept.id} concept={concept} />
-          ))}
-        </div>
-      </section>
-
-      <section>
-        <h2 className={headingClass}>Concept map</h2>
-        <ul className={`${cardClass} space-y-1 text-sm`}>
-          {report.concept_map.edges.map((edge, index) => (
-            <li key={index}>
-              <span className="font-medium">{nodeLabels.get(edge.from)}</span>{" "}
-              <span className="text-gray-500">— {edge.label} →</span>{" "}
-              <span className="font-medium">{nodeLabels.get(edge.to)}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section>
-        <h2 className={headingClass}>Quiz</h2>
-        <div className="space-y-4">
-          {report.quiz.map((item, index) => (
-            <QuizCard key={index} item={item} number={index + 1} />
-          ))}
-        </div>
-      </section>
-
-      <section>
-        <h2 className={headingClass}>Next steps</h2>
-        <ol className={`${cardClass} list-decimal space-y-2 pl-9 text-sm`}>
-          {report.next_steps.map((step, index) => (
-            <li key={index}>{step}</li>
-          ))}
-        </ol>
-      </section>
-
-      <Link href="/" className="inline-block text-sm text-indigo-600 underline">
-        ← Bridge another lecture
-      </Link>
-    </div>
-  );
+  return <ReportDocument report={report} isDemo={isDemo} />;
 }
