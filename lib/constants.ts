@@ -12,6 +12,13 @@ export const MAX_NOTES_CHARS = 15_000;
 /** Notes shorter than this cannot yield 4-6 concepts, so they are rejected early. */
 export const MIN_NOTES_CHARS = 200;
 
+/**
+ * Longest PDF that is sent to the model as a file, so that it sees an image of
+ * every page (handwriting, highlights, diagrams) next to the typed text. Every
+ * page image costs time and tokens; longer PDFs are read by their text alone.
+ */
+export const MAX_ATTACHED_PDF_PAGES = 30;
+
 export const MAX_INTEREST_CHARS = 120;
 export const MAX_LEVEL_CHARS = 60;
 

@@ -74,6 +74,7 @@ const WRITING_RULES = `Rules for the text inside the JSON:
 - "title" is at most 12 words. "summary" is 2 to 4 sentences on what the lecture covers and how it connects to INTEREST.
 - In each concept, "name" is at most 6 words and "bridge_title" at most 10 words. "lecture_explanation", "bridge_explanation", "analogy", "analogy_limits" and "misconception" are 2 to 4 sentences and about 70 words at most. "example" may run to about 90 words.
 - Concept map node labels are at most 5 words. Edge labels are at most 5 words, such as "is like" or "depends on".
+- The concept map shows two things: an edge from each lecture node to its interest node, and edges between lecture nodes where one idea builds on, measures, limits or explains another. Aim for 3 to 5 lecture-to-lecture edges, and add one only where the link is real.
 - Quiz questions are at most 40 words, each option at most 20 words, and each explanation 1 to 3 sentences.
 - Each next step is one or two sentences.
 
@@ -86,17 +87,34 @@ export const SYSTEM_PROMPT = [
   WRITING_RULES,
 ].join("\n\n");
 
-/** The per-request message: the student's choices followed by the lecture notes. */
-export function buildUserPrompt(input: GenerateInput & { notes: string }): string {
-  return [
+/**
+ * The per-request message: the student's choices followed by the lecture notes.
+ *
+ * With `notesAreAttached` the notes are a PDF sent next to this text (see
+ * lib/llm.ts), which the model receives as each page's text plus an image of
+ * the page. `notes` then holds only what the student typed in addition, which
+ * may be nothing.
+ */
+export function buildUserPrompt(
+  input: GenerateInput & { notes: string },
+  notesAreAttached = false,
+): string {
+  const choices = [
     `INTEREST: ${input.interest}`,
     `LEVEL: ${input.level}`,
     `LANGUAGE: ${input.language} (${LANGUAGE_NAMES[input.language]})`,
     "",
-    "LECTURE_NOTES:",
-    '"""',
-    input.notes,
-    '"""',
+  ];
+  const quoted = (notes: string) => ['"""', notes, '"""'];
+
+  if (!notesAreAttached) {
+    return [...choices, "LECTURE_NOTES:", ...quoted(input.notes)].join("\n");
+  }
+  return [
+    ...choices,
+    "LECTURE_NOTES: the attached PDF. Use everything on its pages: the typed text, and also the handwriting, highlighting, margin notes and diagrams, which are often what the student added.",
+    "Leave out anything you cannot read reliably instead of guessing at it. If most of the notes are unreadable, return the error object.",
+    ...(input.notes ? ["", "The student also typed these notes:", ...quoted(input.notes)] : []),
   ].join("\n");
 }
 

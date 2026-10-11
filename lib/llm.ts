@@ -44,10 +44,22 @@ export class LlmError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    /** Set when the provider refused the attached PDF, so the caller can retry with text alone. */
+    readonly attachmentRejected = false,
   ) {
     super(message);
     this.name = "LlmError";
   }
+}
+
+/**
+ * Lecture notes sent as the PDF itself. The API gives the model each page's
+ * text and an image of the page, so handwriting and diagrams are read too.
+ */
+export interface AttachedPdf {
+  filename: string;
+  /** The PDF as a base64 data URL (see pdfDataUrl in ./pdf). */
+  dataUrl: string;
 }
 
 export type GenerateResult =
@@ -61,7 +73,8 @@ type ParsedReply =
   | { kind: "invalid"; problem: string };
 
 /**
- * Generates a Report from lecture notes.
+ * Generates a Report from lecture notes: `notes` as text, or `attachment` as a
+ * PDF the model reads page by page, with `notes` then holding any extra typed text.
  *
  * If the reply is not valid JSON or does not match ReportSchema, the model gets
  * one more attempt with the validation errors appended to the conversation.
@@ -69,7 +82,7 @@ type ParsedReply =
  * @throws LlmError on configuration problems, provider errors, or a second invalid reply.
  */
 export async function generateReport(
-  input: GenerateInput & { notes: string },
+  input: GenerateInput & { notes: string; attachment?: AttachedPdf },
 ): Promise<GenerateResult> {
   const apiKey = process.env.LLM_API_KEY;
   if (!apiKey) {
@@ -85,14 +98,24 @@ export async function generateReport(
     maxRetries: 1,
   });
   const deadline = Date.now() + TOTAL_BUDGET_MS;
+  const attached = input.attachment !== undefined;
+  const prompt = buildUserPrompt(input, attached);
   const messages: ChatMessage[] = [
     { role: "system", content: SYSTEM_PROMPT },
-    { role: "user", content: buildUserPrompt(input) },
+    input.attachment
+      ? {
+          role: "user",
+          content: [
+            { type: "file", file: { filename: input.attachment.filename, file_data: input.attachment.dataUrl } },
+            { type: "text", text: prompt },
+          ],
+        }
+      : { role: "user", content: prompt },
   ];
 
   let lastProblem = "";
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    const raw = await callModel(client, messages, deadline - Date.now());
+    const raw = await callModel(client, messages, deadline - Date.now(), attached);
     const reply = parseReply(raw);
 
     if (reply.kind === "report") {
@@ -123,6 +146,7 @@ async function callModel(
   client: OpenAI,
   messages: ChatMessage[],
   timeoutMs: number,
+  attached: boolean,
 ): Promise<string> {
   // The signal bounds the whole call, including the SDK's own retries and the
   // parameter fallback below; `timeout` alone would restart with every retry.
@@ -138,11 +162,20 @@ async function callModel(
 
   for (;;) {
     try {
+      const started = Date.now();
       const completion = await client.chat.completions.create(params, {
         timeout: timeoutMs,
         signal,
       });
       const choice = completion.choices[0];
+
+      // One line per call in the server log, to keep an eye on speed and spend.
+      const usage = completion.usage;
+      console.info(
+        `[bridge] LLM ${params.model}: ${((Date.now() - started) / 1000).toFixed(1)} s, ` +
+          `${usage?.prompt_tokens ?? "?"} input + ${usage?.completion_tokens ?? "?"} output tokens ` +
+          `(${usage?.completion_tokens_details?.reasoning_tokens ?? 0} reasoning), finish: ${choice?.finish_reason}`,
+      );
 
       if (choice?.message.refusal) {
         throw new LlmError("The model declined to work with these notes.", 422);
@@ -160,7 +193,7 @@ async function callModel(
       return content;
     } catch (error) {
       if (error instanceof OpenAI.BadRequestError && dropRejectedParam(params, error)) continue;
-      throw toLlmError(error, params.model);
+      throw toLlmError(error, params.model, attached);
     }
   }
 }
@@ -209,9 +242,18 @@ function parseReply(raw: string): ParsedReply {
  * Maps SDK errors to messages that are safe to show a user. Provider messages
  * are logged, not forwarded: an authentication error, for one, echoes part of the key.
  */
-function toLlmError(error: unknown, model: string): LlmError {
+function toLlmError(error: unknown, model: string, attached: boolean): LlmError {
   if (error instanceof LlmError) return error;
   console.error("[bridge] LLM call failed:", error);
+
+  // With a PDF attached, a rejected request means the model could not take the file.
+  if (attached && error instanceof OpenAI.BadRequestError) {
+    return new LlmError(
+      "The model could not read this PDF. Try pasting the text of your notes instead.",
+      422,
+      true,
+    );
+  }
 
   if (error instanceof OpenAI.AuthenticationError) {
     return new LlmError("The LLM provider rejected the API key. Check LLM_API_KEY.", 500);

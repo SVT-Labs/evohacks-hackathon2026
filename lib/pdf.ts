@@ -1,9 +1,9 @@
 /**
- * PDF text extraction. Server-only: it needs Node's Buffer.
+ * Reading uploaded PDFs. Server-only: it needs Node's Buffer.
  */
 import { getDocumentProxy } from "unpdf";
 
-/** Pages read from a PDF. Enough for a long slide deck; bounds parsing time. */
+/** Pages whose text is read. Enough for a long slide deck; bounds parsing time. */
 const MAX_PDF_PAGES = 100;
 
 /** A problem with the uploaded file that the user can act on. */
@@ -14,19 +14,28 @@ export class PdfError extends Error {
   }
 }
 
+export interface PdfContent {
+  /**
+   * The selectable text: one line of the page per line, a blank line between
+   * pages. Empty for PDFs that hold only images or drawings, such as scans and
+   * handwritten notes.
+   */
+  text: string;
+  /** Pages in the whole document, including any beyond the ones whose text was read. */
+  pageCount: number;
+}
+
 /** True when the upload is declared as a PDF by its MIME type or file name. */
 export function looksLikePdf(file: File): boolean {
   return file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
 }
 
 /**
- * Returns the text of a PDF, one line of the page per line of text and a blank
- * line between pages. The result is an empty string for PDFs that hold only
- * images or drawings, such as scans and handwritten notes.
+ * Reads the selectable text and the page count of a PDF.
  *
  * @throws PdfError when the bytes are not a PDF or the PDF cannot be read.
  */
-export async function extractPdfText(file: File): Promise<string> {
+export async function readPdf(file: File): Promise<PdfContent> {
   const bytes = new Uint8Array(await file.arrayBuffer());
 
   // Every PDF carries the "%PDF-" signature within its first kilobyte.
@@ -49,14 +58,19 @@ export async function extractPdfText(file: File): Promise<string> {
             .join(""),
         );
       }
-      return pages.join("\n\n");
+      return { text: pages.join("\n\n"), pageCount: pdf.numPages };
     } finally {
       await pdf.loadingTask.destroy(); // frees the document; nothing is kept between uploads
     }
   } catch (cause) {
-    console.error("[bridge] PDF text extraction failed:", cause);
+    console.error("[bridge] Reading the PDF failed:", cause);
     throw new PdfError(
       "The PDF could not be read. It may be password-protected or damaged. Try pasting the text instead.",
     );
   }
+}
+
+/** The whole file as a base64 data URL, the form in which the LLM API accepts a PDF. */
+export async function pdfDataUrl(file: File): Promise<string> {
+  return `data:application/pdf;base64,${Buffer.from(await file.arrayBuffer()).toString("base64")}`;
 }

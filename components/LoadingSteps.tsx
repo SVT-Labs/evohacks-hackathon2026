@@ -3,23 +3,41 @@
 /**
  * The four-step checklist shown while /api/generate works.
  *
- * The API reports no progress, so the steps advance on a timer, one every
- * STEP_MS, and hold on the last one until the form navigates away. A reply can
- * take up to two minutes, so after SLOW_MS a calm hint and an elapsed-seconds
- * counter appear. Screen readers hear each step change and the hint once,
- * through the polite live region; the visual list and the counter are hidden
- * from them so they are not announced twice or every second.
+ * The API reports no progress, so while the form waits the steps follow the
+ * clock: each starts at its STEP_STARTS_MS, paced for a real report, which
+ * takes about half a minute. When the reply is in (`finishing`), the steps
+ * still open are ticked off quickly and `onFinished` tells the form to move on,
+ * so an instant demo reply shows all four steps too. A reply can take up to two
+ * minutes, so after SLOW_MS a calm hint and an elapsed-seconds counter appear.
+ * Screen readers hear each step change and the hint once, through the polite
+ * live region; the visual list and the counter are hidden from them so they are
+ * not announced twice or every second.
  */
 import { motion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const STEPS = ["Reading notes", "Finding concepts", "Building bridges", "Making your PDF"];
-const STEP_MS = 650;
-const SLOW_MS = 12_000;
+/** When each step starts while waiting. The last one holds until the reply arrives. */
+const STEP_STARTS_MS = [0, 4_000, 12_000, 22_000];
+/** How fast the remaining steps are ticked off once the reply is in, and the pause after the last. */
+const FINISH_STEP_MS = 350;
+const FINISH_PAUSE_MS = 300;
+const SLOW_MS = 45_000;
 
-export default function LoadingSteps() {
+export default function LoadingSteps({
+  finishing,
+  onFinished,
+}: {
+  finishing: boolean;
+  onFinished: () => void;
+}) {
   const [elapsed, setElapsed] = useState(0);
   const [announce, setAnnounce] = useState(false);
+  // The step being worked on; STEPS.length when every step is ticked off.
+  const [step, setStep] = useState(0);
+  // Read through a ref so a new callback on each render of the form does not restart the timers.
+  const onFinishedRef = useRef(onFinished);
+  onFinishedRef.current = onFinished;
 
   useEffect(() => {
     // A live region that already holds text when it appears is not read; fill it a moment later.
@@ -32,8 +50,24 @@ export default function LoadingSteps() {
     };
   }, []);
 
-  const step = Math.min(STEPS.length - 1, Math.floor(elapsed / STEP_MS));
-  const slow = elapsed >= SLOW_MS;
+  // While waiting, the checklist follows the clock.
+  const timedStep = STEP_STARTS_MS.filter((start) => elapsed >= start).length - 1;
+  useEffect(() => {
+    if (!finishing) setStep(timedStep);
+  }, [finishing, timedStep]);
+
+  // Once the reply is in, tick off what is left, then hand back to the form.
+  useEffect(() => {
+    if (!finishing) return;
+    const allDone = step >= STEPS.length;
+    const timer = setTimeout(
+      () => (allDone ? onFinishedRef.current() : setStep(step + 1)),
+      allDone ? FINISH_PAUSE_MS : FINISH_STEP_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [finishing, step]);
+
+  const slow = elapsed >= SLOW_MS && !finishing;
 
   return (
     <div className="rounded-md border border-border p-4">
@@ -78,7 +112,9 @@ export default function LoadingSteps() {
         <p aria-live="polite" aria-atomic="true">
           {announce && (
             <span className="sr-only">
-              {`Step ${step + 1} of ${STEPS.length}: ${STEPS[step]}.`}
+              {step < STEPS.length
+                ? `Step ${step + 1} of ${STEPS.length}: ${STEPS[step]}.`
+                : "Your report is ready."}
             </span>
           )}
           {slow && <span>{" Still working — long notes can take up to two minutes."}</span>}

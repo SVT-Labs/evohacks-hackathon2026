@@ -88,7 +88,9 @@ sequenceDiagram
 `POST /api/generate` takes `file` (PDF, ≤ 10 MB) and/or `text`, plus `interest`, `level`
 (default `undergraduate`) and `language` (`en` | `tr`). It answers `200` with a `Report`, or
 `{ "error": string }` with 400, 413, 415, 422, 429 or 5xx. Notes over 15 000 characters are
-shortened section by section (`X-Bridge-Notes-Truncated: true`).
+shortened section by section (`X-Bridge-Notes-Truncated: true`). A PDF of at most 30 pages is sent
+to the model as a file, so it reads each page's text and sees the page itself, handwriting and
+diagrams included (`X-Bridge-Notes-Images: true`); a longer PDF is read by its text alone.
 
 Important consequence for the UI: in demo mode the route returns the English sample **before any
 validation**. Every error the user must see in demo mode (no notes, a non-PDF file, too-short text,
@@ -131,14 +133,17 @@ With nothing stored, ReportView shows an empty state with links to the form and 
 **GenerateForm** owns all landing state in React state (both tabs keep their content, so an error or
 a tab switch never loses input). Validation mirrors the server limits from `lib/constants.ts`; the
 PDF check copies `looksLikePdf` from `lib/pdf.ts` because that module is server-only (it imports
-unpdf). Submit builds `FormData` from state, awaits `Promise.all([request, delay(2500)])` so the
-loading sequence shows for at least 2.5 s, maps non-JSON error bodies by status, validates the reply,
-writes storage (with its own error message if storage is blocked) and navigates.
+unpdf). Submit builds `FormData` from state and awaits the request, which maps non-JSON error bodies
+by status and validates the reply. When a report is in, the form sets `finishing`, waits for
+`LoadingSteps` to call back, writes storage (with its own error message if storage is blocked) and
+navigates.
 
-**LoadingSteps** advances "Reading notes → Finding concepts → Building bridges → Making your PDF" on a
-timer and holds on the last step. After 12 s it adds a calm "still working" hint and an elapsed
-counter that sits outside the `aria-live` region, so screen readers hear each step once, not every
-second.
+**LoadingSteps** shows "Reading notes → Finding concepts → Building bridges → Making your PDF". While
+the form waits, each step starts at a fixed time (0, 4, 12 and 22 s), paced for a real report, which
+takes about half a minute; the last step holds until the reply arrives. With `finishing` set it ticks
+off the steps still open, one every 350 ms, then calls `onFinished`, so an instant demo reply shows
+all four steps too. After 45 s it adds a calm "still working" hint and an elapsed counter that sits
+outside the `aria-live` region, so screen readers hear each step once, not every second.
 
 **ReportView** renders the header (interest, title, summary), one section per concept with every
 field, the strength as 1–5 with a spoken label, "Where the analogy breaks" as the single highlighted

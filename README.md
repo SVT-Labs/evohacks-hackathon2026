@@ -41,6 +41,8 @@ Open http://localhost:3000. With `DEMO_MODE=true` in `.env.local` the app works 
 
 It answers `200` with a `Report`, or `{ "error": string }` with a 4xx or 5xx status. Notes longer than 15,000 characters are shortened section by section, and the response then carries `X-Bridge-Notes-Truncated: true`.
 
+A PDF of up to 30 pages is sent to the model as the file itself. The model then gets each page's text and an image of the page, so handwriting, highlighting and diagrams are read along with the typed text, and the response carries `X-Bridge-Notes-Images: true`. The model is told to leave out what it cannot read instead of guessing. A longer PDF is read by its selectable text alone; if it has almost none, it is rejected with a message asking for fewer pages or pasted text.
+
 ```bash
 curl -X POST http://localhost:3000/api/generate -F "file=@lecture.pdf;type=application/pdf" -F "interest=football tactics" -F "language=en"
 ```
@@ -78,7 +80,8 @@ The PDF is built in the browser when you click "Download PDF", so it needs no se
 ## Limits to know about
 
 - The rate limiter keeps its counts in the memory of one server process, so they reset on restart and are not shared between serverless instances.
-- Scanned PDFs and handwritten notes contain no selectable text and are rejected with a message asking for pasted text.
+- Handwriting, highlighting and diagrams are only read in PDFs of 30 pages or fewer. In a longer PDF only the selectable text counts, and anything handwritten is ignored.
+- A report takes about half a minute and, with `gpt-6-luna`, costs roughly 0.2 to 0.4 US cents (measured in October 2026). Each call's duration and token counts are written to the server log.
 - Vercel rejects request bodies over 4.5 MB before they reach the app, so the 10 MB PDF limit only applies in full on other hosts and locally.
 - The route allows up to 120 seconds per request (`maxDuration`), which needs Fluid compute on Vercel's Hobby plan.
 - The PDF font covers Latin, Turkish and common science symbols. Characters outside DejaVu Sans, such as emoji, would show as empty boxes in the PDF.

@@ -38,8 +38,6 @@ import {
 const INTERESTS = ["Football", "Music", "Gaming", "Cooking", "Space", "Fashion"];
 const LEVELS = ["high school", "undergraduate", "graduate"];
 const MAX_FILE_MB = MAX_FILE_BYTES / (1024 * 1024);
-/** The step animation runs at least this long, so an instant (demo) reply does not flash past it. */
-const MIN_LOADING_MS = 2500;
 const SPRING = { type: "spring", bounce: 0, duration: 0.3 } as const;
 
 type Tab = "file" | "text";
@@ -181,6 +179,9 @@ export default function GenerateForm() {
   const [errors, setErrors] = useState<Errors>({});
   const [dragOver, setDragOver] = useState(false);
   const [loading, setLoading] = useState(false);
+  // True once the reply is in: the checklist then ticks off its remaining steps and calls back.
+  const [finishing, setFinishing] = useState(false);
+  const checklistDone = useRef<(() => void) | null>(null);
 
   // False until the saved draft is read, so the first render's defaults never overwrite it.
   const [draftRead, setDraftRead] = useState(false);
@@ -306,16 +307,21 @@ export default function GenerateForm() {
     body.append("level", level);
     body.append("language", language);
 
+    setFinishing(false);
     setLoading(true);
-    const [result] = await Promise.all([
-      requestReport(body),
-      new Promise((resolve) => setTimeout(resolve, MIN_LOADING_MS)),
-    ]);
+    const result = await requestReport(body);
     if (!mounted.current) return; // the student left the page; do not pull them back to /report
     if ("error" in result) {
       showFormError(result.error);
       return;
     }
+
+    // Let the checklist tick off its remaining steps, so even an instant (demo) reply shows all four.
+    await new Promise<void>((resolve) => {
+      checklistDone.current = resolve;
+      setFinishing(true);
+    });
+    if (!mounted.current) return;
 
     try {
       sessionStorage.setItem(REPORT_STORAGE_KEY, JSON.stringify(result.report));
@@ -566,7 +572,7 @@ export default function GenerateForm() {
           </div>
         )}
 
-        {loading && <LoadingSteps />}
+        {loading && <LoadingSteps finishing={finishing} onFinished={() => checklistDone.current?.()} />}
 
         <button
           type="submit"
@@ -581,7 +587,7 @@ export default function GenerateForm() {
           )}
         </button>
         <p className="text-center text-sm text-muted">
-          Takes up to a minute. Your report stays in this browser tab.
+          Usually takes about half a minute. Your report stays in this browser tab.
         </p>
       </fieldset>
     </form>

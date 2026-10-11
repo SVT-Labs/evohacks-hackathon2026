@@ -4,7 +4,10 @@
  * Turns lecture notes into a Bridge report.
  *
  * Request: multipart/form-data
- *   file      PDF, optional, up to 10 MB
+ *   file      PDF, optional, up to 10 MB. Up to 30 pages it is sent to the model as
+ *             a file, so the model reads each page's text and sees the page itself
+ *             (handwriting, highlighting, diagrams). Longer PDFs are read by their
+ *             selectable text alone.
  *   text      pasted notes, optional (at least one of file/text is required)
  *   interest  required, e.g. "football tactics"
  *   level     optional, defaults to "undergraduate"
@@ -16,10 +19,10 @@
  * Example calls are at the bottom of this file.
  */
 import { NextResponse } from "next/server";
-import { MAX_FILE_BYTES, MIN_NOTES_CHARS } from "@/lib/constants";
-import { LlmError, generateReport } from "@/lib/llm";
+import { MAX_ATTACHED_PDF_PAGES, MAX_FILE_BYTES, MIN_NOTES_CHARS } from "@/lib/constants";
+import { LlmError, generateReport, type GenerateResult } from "@/lib/llm";
 import { prepareNotes } from "@/lib/notes";
-import { PdfError, extractPdfText, looksLikePdf } from "@/lib/pdf";
+import { PdfError, looksLikePdf, pdfDataUrl, readPdf, type PdfContent } from "@/lib/pdf";
 import { checkRateLimit, getClientKey } from "@/lib/rate-limit";
 import { SAMPLE_REPORT } from "@/lib/sample";
 import { GenerateInputSchema, describeIssues, type ApiError } from "@/lib/types";
@@ -89,11 +92,11 @@ export async function POST(request: Request) {
   }
 
   // 5. Collect the lecture notes from the PDF and/or the pasted text.
-  const file = form.get("file");
-  const hasFile = file instanceof File && file.size > 0;
-  let pdfText = "";
+  const upload = form.get("file");
+  const file = upload instanceof File && upload.size > 0 ? upload : null;
+  let pdf: PdfContent = { text: "", pageCount: 0 };
 
-  if (hasFile) {
+  if (file) {
     if (file.size > MAX_FILE_BYTES) {
       return jsonError(`The PDF is too large. The limit is ${MAX_FILE_MB} MB.`, 413);
     }
@@ -101,7 +104,7 @@ export async function POST(request: Request) {
       return jsonError("Only PDF files are supported.", 415);
     }
     try {
-      pdfText = await extractPdfText(file);
+      pdf = await readPdf(file);
     } catch (error) {
       if (error instanceof PdfError) return jsonError(error.message, 422);
       console.error("[bridge] Unexpected PDF error:", error);
@@ -110,32 +113,73 @@ export async function POST(request: Request) {
   }
 
   const pastedText = textField(form, "text") ?? "";
-  const notes = prepareNotes([pdfText, pastedText].filter(Boolean).join("\n\n"));
 
-  if (!notes.text) {
-    return hasFile
-      ? jsonError(
-          "No text could be extracted from this PDF. It may contain only scanned images. Try pasting the text instead.",
-          422,
-        )
-      : jsonError("Upload a PDF or paste your lecture notes.", 400);
-  }
-  if (notes.text.length < MIN_NOTES_CHARS) {
+  // The notes as plain text: the PDF's text layer plus anything pasted.
+  const textNotes = prepareNotes([pdf.text, pastedText].filter(Boolean).join("\n\n"));
+  const hasEnoughText = textNotes.text.length >= MIN_NOTES_CHARS;
+
+  // A PDF of reasonable length goes to the model as the file itself. The API
+  // then gives the model each page's text and an image of the page, so
+  // handwriting, highlighting and diagrams are read along with the typed text.
+  const attachedFile =
+    file && pdf.pageCount > 0 && pdf.pageCount <= MAX_ATTACHED_PDF_PAGES ? file : null;
+
+  if (!attachedFile && !hasEnoughText) {
+    if (file && pdf.pageCount > MAX_ATTACHED_PDF_PAGES) {
+      return jsonError(
+        `This PDF has little or no selectable text, and at ${pdf.pageCount} pages it is too long to be read page by page (the limit is ${MAX_ATTACHED_PDF_PAGES}). Upload fewer pages, or paste the text instead.`,
+        422,
+      );
+    }
+    if (!textNotes.text) {
+      return file
+        ? jsonError("No text could be extracted from this PDF. Try pasting the text instead.", 422)
+        : jsonError("Upload a PDF or paste your lecture notes.", 400);
+    }
     return jsonError(
-      `The notes are too short to build a report (${notes.text.length} characters). Provide at least ${MIN_NOTES_CHARS}.`,
+      `The notes are too short to build a report (${textNotes.text.length} characters). Provide at least ${MIN_NOTES_CHARS}.`,
       422,
     );
   }
 
   // 6. Generate, validate (with one retry inside generateReport) and respond.
   try {
-    const result = await generateReport({ ...input.data, notes: notes.text });
+    const fromText = () => generateReport({ ...input.data, notes: textNotes.text });
+    let sawPages = attachedFile !== null;
+    let result: GenerateResult;
+
+    if (attachedFile) {
+      try {
+        result = await generateReport({
+          ...input.data,
+          notes: prepareNotes(pastedText).text, // only what was typed; the rest is in the file
+          attachment: {
+            filename: attachedFile.name || "notes.pdf",
+            dataUrl: await pdfDataUrl(attachedFile),
+          },
+        });
+      } catch (error) {
+        // A model or provider that takes no files can still work from the text layer.
+        const canFallBack = error instanceof LlmError && error.attachmentRejected && hasEnoughText;
+        if (!canFallBack) throw error;
+        console.warn("[bridge] The model refused the PDF file; using its text alone.");
+        sawPages = false;
+        result = await fromText();
+      }
+    } else {
+      result = await fromText();
+    }
+
     if (!result.ok) {
       return jsonError(result.error, 422);
     }
     return NextResponse.json(result.report, {
-      // Lets the UI mention that long notes were shortened before analysis.
-      headers: { "X-Bridge-Notes-Truncated": String(notes.truncated) },
+      headers: {
+        // Lets the UI say that long notes were shortened before analysis...
+        "X-Bridge-Notes-Truncated": String(!sawPages && textNotes.truncated),
+        // ...or that the model saw the pages themselves, handwriting and diagrams included.
+        "X-Bridge-Notes-Images": String(sawPages),
+      },
     });
   } catch (error) {
     if (error instanceof LlmError) return jsonError(error.message, error.status);
@@ -166,6 +210,22 @@ export async function POST(request: Request) {
  *   call:   curl -X POST http://localhost:3000/api/generate \
  *             -F "file=@lecture.pdf;type=application/pdf" -F "interest=basketbol" -F "language=tr"
  *   expect: 200, body.language === "tr", header X-Bridge-Notes-Truncated: true for long PDFs
+ *
+ * it("reads handwriting and diagrams in a PDF of up to 30 pages")
+ *   call:   curl -i -X POST http://localhost:3000/api/generate \
+ *             -F "file=@annotated-slides.pdf;type=application/pdf" -F "interest=chess"
+ *   expect: 200, header X-Bridge-Notes-Images: true; or 422 with the model's
+ *           explanation when most of the writing cannot be read
+ *
+ * it("reads a longer typed PDF by its text alone")
+ *   call:   curl -i -X POST http://localhost:3000/api/generate \
+ *             -F "file=@chapter-45-pages.pdf;type=application/pdf" -F "interest=chess"
+ *   expect: 200, headers X-Bridge-Notes-Images: false, X-Bridge-Notes-Truncated: true
+ *
+ * it("rejects a scanned PDF of more than 30 pages")
+ *   call:   curl -i -X POST http://localhost:3000/api/generate \
+ *             -F "file=@scan-40-pages.pdf;type=application/pdf" -F "interest=chess"
+ *   expect: 422, error mentions "too long to be read page by page"
  *
  * it("rejects a request without an interest")
  *   call:   curl -i -X POST http://localhost:3000/api/generate -F "text=<lecture-notes.txt"
