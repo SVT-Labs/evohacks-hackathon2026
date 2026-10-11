@@ -43,7 +43,7 @@ export default function HomePage() {
 
         <section
           aria-label="Start a report"
-          className="self-start rounded-md border border-border bg-card p-5 sm:p-8 lg:col-span-7 lg:col-start-6 lg:row-span-2 lg:row-start-1"
+          className="min-w-0 self-start rounded-md border border-border bg-card p-5 sm:p-8 lg:col-span-7 lg:col-start-6 lg:row-span-2 lg:row-start-1"
         >
           <GenerateForm />
         </section>

@@ -63,13 +63,21 @@ const MAPS = {
   "English sample": SAMPLE_REPORT.concept_map,
   "Turkish sample": SAMPLE_REPORT_TR?.concept_map,
   "dense 14-node map": denseMap(),
+  // A label wrapped to many lines on a top-row edge used to poke above the canvas.
+  "map with a tall label at the top": {
+    nodes: [
+      { id: "a", type: "lecture", label: "Denge" },
+      { id: "b", type: "interest", label: "Savunma" },
+    ],
+    edges: [{ from: "a", to: "b", label: "dengenin konumunu doğrudan belirleyen temel etkendir" }],
+  },
   "map with a loop and one column": {
     nodes: [
       { id: "a", type: "lecture", label: "Entropy" },
       { id: "b", type: "lecture", label: "Second law of thermodynamics" },
     ],
     edges: [
-      { from: "a", to: "a", label: "feeds back on" },
+      { from: "a", to: "a", label: "feeds back into itself" },
       { from: "b", to: "a", label: "constrains" },
     ],
   },
@@ -104,6 +112,12 @@ for (const [name, map] of Object.entries(MAPS)) {
       }
       for (const node of layout.nodes) {
         assert.equal(overlapArea(label, node), 0, `label "${map.edges[index].label}" covers node ${node.id}`);
+      }
+      if (edge.kind === "loop") {
+        // The loop bows about 22 units out from its node; its label must sit beyond that, not on it.
+        const node = layout.nodes.find((n) => n.id === edge.from);
+        const clear = node.type === "lecture" ? label.x + label.width <= node.x - 22 : label.x >= node.x + node.width + 22;
+        assert.ok(clear, `loop label "${map.edges[index].label}" covers its loop`);
       }
       layout.edges.slice(index + 1).forEach((other, j) => {
         assert.equal(overlapArea(label, other.label), 0, `labels "${map.edges[index].label}" and "${map.edges[index + 1 + j].label}" overlap`);

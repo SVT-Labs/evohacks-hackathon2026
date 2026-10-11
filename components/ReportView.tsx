@@ -175,6 +175,13 @@ function QuizCard({
   onChoose: (index: number) => void;
 }) {
   const answered = chosen !== null;
+  // The pressed option becomes disabled, which drops focus; the feedback takes it instead.
+  const feedbackRef = useRef<HTMLDivElement>(null);
+  const justAnswered = useRef(false);
+  useEffect(() => {
+    if (answered && justAnswered.current) feedbackRef.current?.focus();
+    justAnswered.current = false;
+  }, [answered]);
   const right = chosen === item.answer_index;
 
   return (
@@ -205,7 +212,10 @@ function QuizCard({
                 id={`quiz-${number}-option-${optionLetter(index).toLowerCase()}`}
                 type="button"
                 disabled={answered}
-                onClick={() => onChoose(index)}
+                onClick={() => {
+                  justAnswered.current = true;
+                  onChoose(index);
+                }}
                 className={`flex w-full items-start gap-3 rounded-md border px-3 py-2.5 text-left transition-[transform,background-color,border-color,color] duration-100 active:translate-y-px disabled:cursor-default ${tone} ${focusRing}`}
               >
                 <span
@@ -227,7 +237,7 @@ function QuizCard({
       </ul>
       <div aria-live="polite">
         {answered && (
-          <div className="mt-4 rounded-md border border-border px-4 py-3">
+          <div ref={feedbackRef} tabIndex={-1} className={`mt-4 rounded-md border border-border px-4 py-3 ${focusRing}`}>
             <p className={`flex items-center gap-2 font-bold ${right ? "text-success" : "text-danger"}`}>
               <Icon d={right ? icons.check : icons.cross} />
               {right ? labels.correct : labels.incorrect}
@@ -257,24 +267,32 @@ function SectionNav({ labels }: { labels: ReportLabels }) {
   };
 
   useEffect(() => {
-    // A section counts as current while it crosses a band near the top of the screen.
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries.filter((entry) => entry.isIntersecting);
-        if (visible.length) setCurrent(visible[0].target.id as SectionId);
-      },
-      { rootMargin: "-20% 0px -70% 0px" },
-    );
-    SECTIONS.forEach((id) => {
-      const element = document.getElementById(id);
-      if (element) observer.observe(element);
-    });
-    return () => observer.disconnect();
+    // One rule on every scroll, so nothing can race: the current section is the
+    // last one whose top has passed 30% of the screen, or the last section once
+    // the page is at its bottom (it is too short to get that far up).
+    // Four position reads per scroll event are cheap; no frame scheduling, which pauses in background tabs.
+    const update = () => {
+      const atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2;
+      let next: SectionId = SECTIONS[0];
+      for (const id of SECTIONS) {
+        const element = document.getElementById(id);
+        if (element && element.getBoundingClientRect().top <= window.innerHeight * 0.3) next = id;
+      }
+      setCurrent(atBottom ? SECTIONS[SECTIONS.length - 1] : next);
+    };
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
   }, []);
 
   const link = (id: SectionId, wide: boolean) => (
     <a
       href={`#${id}`}
+      onClick={() => setCurrent(id)}
       aria-current={wide && current === id ? "location" : undefined}
       className={`rounded-sm ${focusRing} ${
         wide
@@ -332,11 +350,14 @@ function ReportDocument({ report, isDemo }: { report: Report; isDemo: boolean })
   const previewButtonRef = useRef<HTMLButtonElement>(null);
 
   // Opened after the render that mounts the panel, so showModal() can focus its close button.
+  // The cleanup frees the PDF on close and also when the page is left with the preview open.
   useEffect(() => {
-    if (previewUrl) dialogRef.current?.showModal();
+    if (!previewUrl) return;
+    dialogRef.current?.showModal();
+    return () => URL.revokeObjectURL(previewUrl);
   }, [previewUrl]);
 
-  // The "Saved ..." confirmation clears itself.
+  // The "Downloading ..." note clears itself.
   useEffect(() => {
     if (!saved) return;
     const timer = setTimeout(() => setSaved(null), 5000);
@@ -354,6 +375,8 @@ function ReportDocument({ report, isDemo }: { report: Report; isDemo: boolean })
 
   async function withPdf(kind: "download" | "preview", use: (url: string) => void) {
     if (busy) return;
+    // The button disables itself while the PDF is built; focus goes back to it afterwards.
+    const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setBusy(kind);
     setFailed(false);
     setSaved(null);
@@ -363,7 +386,8 @@ function ReportDocument({ report, isDemo }: { report: Report; isDemo: boolean })
     } catch {
       setFailed(true);
     } finally {
-      setBusy(null);
+      flushSync(() => setBusy(null));
+      if (trigger?.isConnected && !dialogRef.current?.open) trigger.focus();
     }
   }
 
@@ -384,7 +408,6 @@ function ReportDocument({ report, isDemo }: { report: Report; isDemo: boolean })
 
   // Runs for the close button and for Escape alike.
   function closePreview() {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(null);
     previewButtonRef.current?.focus();
   }
@@ -437,7 +460,7 @@ function ReportDocument({ report, isDemo }: { report: Report; isDemo: boolean })
           {saved && (
             <>
               <Icon d={icons.check} />
-              {labels.pdfSaved(saved)}
+              {labels.pdfDownloading(saved)}
             </>
           )}
         </p>

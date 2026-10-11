@@ -85,6 +85,7 @@ export const NODE_CHARS = Math.floor((NODE_WIDTH - 2 * NODE_PAD_X) / (NODE_FONT 
 // Turkish words run long, so labels get as many characters as their space allows.
 export const CROSS_LABEL_CHARS = 16;
 export const COLUMN_LABEL_CHARS = 15;
+export const LOOP_LABEL_CHARS = 13;
 
 /** Where on its line (0 = start, 1 = end) a label may sit, tried in order, to dodge others. */
 const CROSS_POSITIONS = [0.5, 0.4, 0.6, 0.33, 0.67];
@@ -345,7 +346,9 @@ export function layoutConceptMap(map: ConceptMap): MapLayout {
         { x: p3.x + out, y: mid + 20 },
       ];
     }
-    const lines = wrapLabel(edge.label, kind === "cross" ? CROSS_LABEL_CHARS : COLUMN_LABEL_CHARS);
+    // Loop labels sit beside the loop inside the outer margin, which leaves room for fewer characters.
+    const maxChars = kind === "cross" ? CROSS_LABEL_CHARS : kind === "loop" ? LOOP_LABEL_CHARS : COLUMN_LABEL_CHARS;
+    const lines = wrapLabel(edge.label, maxChars);
     return {
       kind,
       p0,
@@ -375,7 +378,8 @@ export function layoutConceptMap(map: ConceptMap): MapLayout {
       x = p0.x + Math.sign(controls![0].x - p0.x) * (24 + width / 2);
     }
     const left = Math.min(Math.max(x - width / 2, 1), WIDTH - width - 1);
-    return { x: left, y: y - height / 2, width, height };
+    // Inside the canvas vertically too: a tall label between the top nodes would otherwise poke above it.
+    return { x: left, y: Math.max(y - height / 2, 1), width, height };
   };
 
   // Nodes may never be covered; one label touching another is the lesser evil.

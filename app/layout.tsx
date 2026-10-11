@@ -27,8 +27,15 @@ const description =
   "Upload your lecture notes, name something you love, and get every key concept explained through it, with a concept map, a quiz and a PDF.";
 
 export const metadata: Metadata = {
-  // Absolute URLs for the share card: the deployment's own address on Vercel, localhost otherwise.
-  metadataBase: new URL(process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000"),
+  // Absolute URLs for the share card. On Vercel, the production domain: per-deployment URLs sit
+  // behind Deployment Protection by default, so crawlers could not fetch the image from them.
+  metadataBase: new URL(
+    process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : "http://localhost:3000",
+  ),
   title: "Bridge — lecture notes, explained through what you love",
   description,
   openGraph: {

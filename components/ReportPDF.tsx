@@ -324,8 +324,9 @@ export default function ReportPDF({ report }: { report: Report }) {
       <ContentPage L={L}>
         <Text style={s.h1}>{L.quiz}</Text>
         {report.quiz.map((q, i) => (
-          <View key={i} style={s.question} wrap={false}>
-            <Text style={s.questionText}>
+          // Not wrap={false}: a block taller than a page would run past the footer instead of splitting.
+          <View key={i} style={s.question}>
+            <Text style={s.questionText} minPresenceAhead={60}>
               {i + 1}. {q.question}
             </Text>
             {q.options.map((option, j) => (
@@ -341,8 +342,8 @@ export default function ReportPDF({ report }: { report: Report }) {
       <ContentPage L={L}>
         <Text style={s.h1}>{L.answerKey}</Text>
         {report.quiz.map((q, i) => (
-          <View key={i} style={s.answer} wrap={false}>
-            <Text style={s.answerHead}>
+          <View key={i} style={s.answer}>
+            <Text style={s.answerHead} minPresenceAhead={30}>
               {i + 1}. {optionLetter(q.answer_index)}: {q.options[q.answer_index]}
             </Text>
             <Text style={s.muted}>{q.explanation}</Text>
