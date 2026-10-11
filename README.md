@@ -4,7 +4,7 @@
 
 Upload your notes, name an interest such as football, gaming or cooking, and Bridge explains every key concept of the lecture through that interest. Each comparison comes with an honest note on where it stops working, so the analogy never replaces the real subject.
 
-**Demo video (2:45):** VIDEO_LINK_HERE
+**Demo video (2:45):** https://drive.google.com/file/d/1PuBR2q9GECikgzhp0PfituRYnAEnIR7w/view?usp=sharing
 
 ## What you get
 
@@ -87,4 +87,4 @@ Example calls, with the result to expect from each, are at the bottom of `app/ap
 
 ## Team
 
-SVT Labs: NAME_1 and NAME_2
+SVT Labs: Tuna Gülağaç and Samad Aliyev
