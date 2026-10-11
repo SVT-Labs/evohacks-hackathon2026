@@ -36,10 +36,10 @@ export const metadata: Metadata = {
         ? `https://${process.env.VERCEL_URL}`
         : "http://localhost:3000",
   ),
-  title: "Bridge — lecture notes, explained through what you love",
+  title: "Bridge",
   description,
   openGraph: {
-    title: "Bridge — lecture notes, explained through what you love",
+    title: "Bridge",
     description,
     siteName: "Bridge",
     type: "website",
