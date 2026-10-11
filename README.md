@@ -12,7 +12,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open http://localhost:3000. With `DEMO_MODE=true` in `.env.local` the app works without an API key and always returns the sample report. To generate real reports, set `LLM_API_KEY` to an OpenAI key and `DEMO_MODE=false`, then restart the dev server.
+Open http://localhost:3000. With `DEMO_MODE=true` in `.env.local` the app works without an API key and always returns the English sample report (whatever language is chosen), and the report page says it is a demo. To generate real reports, set `LLM_API_KEY` to an OpenAI key and `DEMO_MODE=false`, then restart the dev server.
 
 ## Environment
 
@@ -47,10 +47,14 @@ More example calls, with the expected result of each, are at the bottom of `app/
 
 ## Where things are
 
+`ARCHITECTURE.md` explains how the pieces fit together: the request flow, the report contract, the concept-map layout, the PDF pipeline and the design system.
+
 | Path | What it holds |
 | --- | --- |
 | `lib/types.ts` | The `Report` contract: Zod schemas and the types inferred from them |
-| `lib/sample.ts` | A complete sample report (chemical equilibrium bridged to football tactics) |
+| `lib/sample.ts` | A complete sample report (chemical equilibrium bridged to football tactics) and its Turkish translation |
+| `lib/labels.ts` | The fixed words of a report in English and Turkish, shared by the report page and the PDF |
+| `lib/concept-map-layout.ts` | Concept-map geometry (columns, curves, wrapped labels), shared by the report page and the PDF |
 | `lib/prompt.ts` | The system prompt and the messages sent to the LLM |
 | `lib/llm.ts` | The LLM call, reply validation and the single corrective retry |
 | `lib/notes.ts` | Text clean-up and heading-aware shortening of long notes |
@@ -59,9 +63,15 @@ More example calls, with the expected result of each, are at the bottom of `app/
 | `lib/constants.ts` | Limits shared by the form and the API |
 | `app/api/generate/route.ts` | The endpoint |
 | `app/page.tsx`, `components/GenerateForm.tsx` | Landing page and form |
-| `app/report/page.tsx`, `components/ReportView.tsx` | Report viewer; `/report?sample=1` shows the sample |
+| `app/report/page.tsx`, `components/ReportView.tsx` | Report viewer; `/report?sample=1` shows the English sample, `/report?sample=tr` the Turkish one |
+| `components/ConceptMapDiagram.tsx` | The concept map drawn as SVG on the report page |
+| `components/ReportPDF.tsx` | The downloadable A4 PDF, rendered in the browser with `@react-pdf/renderer` |
+| `public/fonts` | DejaVu Sans (regular and bold) for the PDF, with its licence; it covers Turkish letters and the science symbols |
+| `scripts/self-check.test.mjs` | `npm test`: the samples against `ReportSchema`, the map layout, and the PDF font's glyph coverage |
 
-The form stores the returned report in `sessionStorage` under the key `bridge:report`, and `/report` reads it from there.
+The form stores the returned report in `sessionStorage` under the key `bridge:report`, and `/report` reads it from there. It also stores `bridge:demo` (`"true"` when the response carried `X-Bridge-Demo: true`), so the report page can say it is showing the demo sample.
+
+The PDF is built in the browser when you click "Download PDF", so it needs no server work and works offline: the fonts are served from `public/fonts`.
 
 ## Limits to know about
 
@@ -69,3 +79,4 @@ The form stores the returned report in `sessionStorage` under the key `bridge:re
 - Scanned PDFs contain no selectable text and are rejected with a message asking for pasted text.
 - Vercel rejects request bodies over 4.5 MB before they reach the app, so the 10 MB PDF limit only applies in full on other hosts and locally.
 - The route allows up to 120 seconds per request (`maxDuration`), which needs Fluid compute on Vercel's Hobby plan.
+- The PDF font covers Latin, Turkish and common science symbols. Characters outside DejaVu Sans, such as emoji, would show as empty boxes in the PDF.
