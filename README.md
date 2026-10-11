@@ -1,10 +1,34 @@
 # Bridge
 
-Bridge turns lecture notes into explanations built around something the student already loves. Upload a PDF or paste notes, name an interest (football tactics, baking, chess), and get back the key concepts, an analogy for each one with an honest note on where it breaks down, a concept map, a quiz and next steps.
+**Your lecture notes, explained through what you love.**
 
-Next.js 14 (App Router), TypeScript, Tailwind. No database and no auth: a report lives in the browser tab that requested it. Needs Node.js 22 or newer.
+Upload your notes, name an interest such as football, gaming or cooking, and Bridge explains every key concept of the lecture through that interest. Each comparison comes with an honest note on where it stops working, so the analogy never replaces the real subject.
 
-## Run it
+**Demo video (2:45):** VIDEO_LINK_HERE
+
+## What you get
+
+- **The key concepts** of the lecture (four to six), each explained first the way the notes put it and then through your interest, with a worked example and a common misconception.
+- **Where the analogy breaks.** Every comparison states its limits and gets a match score from 1 to 5.
+- **A concept map** of how the ideas connect, **a five-question quiz** on the lecture itself, and three next steps.
+- **A PDF** of the whole report to download.
+- **Typed, handwritten or mixed notes.** Bridge reads handwriting, highlighting and diagrams in PDFs of up to 30 pages, or you can paste text.
+- **Reports in English or Turkish.**
+
+If the upload is not lecture material, Bridge says so instead of inventing content.
+
+## How it works
+
+1. The form sends the PDF or pasted text, the interest, the level and the language to one API route.
+2. A PDF of up to 30 pages goes to OpenAI's GPT-6 Luna model as the file itself, so the model gets each page's text and an image of the page. A longer PDF is read by its typed text alone.
+3. The model has to answer in a fixed JSON structure. The server checks the answer against that structure and asks once more if it does not fit.
+4. The report is shown in the browser and kept only in that tab. The PDF is built in the browser too.
+
+There is no database and there are no accounts. Built with Next.js 14, TypeScript, Tailwind, Zod, the OpenAI SDK, unpdf and @react-pdf/renderer.
+
+## Run it locally
+
+Needs Node.js 22 or newer.
 
 ```bash
 npm install
@@ -12,11 +36,15 @@ cp .env.example .env.local
 npm run dev
 ```
 
-`npm test` runs the self-checks in `scripts/self-check.test.mjs`. They load the TypeScript modules directly, so they need Node 22.18 or newer (Node 24 is what the project was built with); the app itself runs on any Node version Next.js 14 supports.
+Then open http://localhost:3000.
 
-Open http://localhost:3000. With `DEMO_MODE=true` in `.env.local` the app works without an API key and always returns the English sample report (whatever language is chosen), and the report page says it is a demo. To generate real reports, set `LLM_API_KEY` to an OpenAI key and `DEMO_MODE=false`, then restart the dev server.
+With `DEMO_MODE=true` in `.env.local` the app needs no API key and always answers with the built-in sample report. For real reports, set `LLM_API_KEY` to an OpenAI key and `DEMO_MODE=false`, then restart.
 
-## Environment
+`npm test` runs the self-checks, which need Node 22.18 or newer.
+
+## Settings
+
+These go in `.env.local`.
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
@@ -24,12 +52,12 @@ Open http://localhost:3000. With `DEMO_MODE=true` in `.env.local` the app works 
 | `LLM_MODEL` | no | Model id, default `gpt-6-luna` |
 | `LLM_REASONING_EFFORT` | no | `none`, `low`, `medium` or `high` for reasoning models |
 | `LLM_BASE_URL` | no | Any OpenAI-compatible endpoint |
-| `DEMO_MODE` | no | `true` returns the cached sample and skips the LLM |
-| `RATE_LIMIT_PER_MINUTE` | no | Requests per client IP per minute, default 10 |
+| `DEMO_MODE` | no | `true` returns the built-in sample and skips the model |
+| `RATE_LIMIT_PER_MINUTE` | no | Requests per client address per minute, default 10 |
 
 ## API
 
-`POST /api/generate` takes `multipart/form-data`:
+`POST /api/generate` takes `multipart/form-data` and answers with a report as JSON, or with `{ "error": string }` and a 4xx or 5xx status.
 
 | Field | Notes |
 | --- | --- |
@@ -39,49 +67,24 @@ Open http://localhost:3000. With `DEMO_MODE=true` in `.env.local` the app works 
 | `level` | Optional, defaults to `undergraduate` |
 | `language` | Optional, `en` (default) or `tr` |
 
-It answers `200` with a `Report`, or `{ "error": string }` with a 4xx or 5xx status. Notes longer than 15,000 characters are shortened section by section, and the response then carries `X-Bridge-Notes-Truncated: true`.
+Response headers say whether the notes were shortened (`X-Bridge-Notes-Truncated`), whether the model saw the pages as images (`X-Bridge-Notes-Images`), and whether the answer is the demo sample (`X-Bridge-Demo`).
 
-A PDF of up to 30 pages is sent to the model as the file itself. The model then gets each page's text and an image of the page, so handwriting, highlighting and diagrams are read along with the typed text, and the response carries `X-Bridge-Notes-Images: true`. The model is told to leave out what it cannot read instead of guessing. A longer PDF is read by its selectable text alone; if it has almost none, it is rejected with a message asking for fewer pages or pasted text.
+Example calls, with the result to expect from each, are at the bottom of `app/api/generate/route.ts`.
 
-```bash
-curl -X POST http://localhost:3000/api/generate -F "file=@lecture.pdf;type=application/pdf" -F "interest=football tactics" -F "language=en"
-```
+## Limits
 
-More example calls, with the expected result of each, are at the bottom of `app/api/generate/route.ts`.
+- Handwriting, highlighting and diagrams are only read in PDFs of 30 pages or fewer. In a longer PDF only the typed text counts.
+- Handwriting was tested with neat writing in English. Messy handwriting and notes written in Turkish have not been tested.
+- A report has at most six concepts, even when the notes cover more.
+- A report takes about half a minute and, with `gpt-6-luna`, costs roughly 0.2 to 0.4 US cents (measured in October 2026).
+- Pasted text over 15,000 characters is shortened section by section before the model reads it.
+- The rate limiter keeps its counts in the memory of one server process, so they reset on restart.
+- Characters outside the PDF font, such as emoji, show as empty boxes in the downloaded PDF.
 
-## Where things are
+## More detail
 
-`ARCHITECTURE.md` explains how the pieces fit together: the request flow, the report contract, the concept-map layout, the PDF pipeline and the design system.
+`ARCHITECTURE.md` describes the request flow, the structure of a report, the concept-map layout, the PDF and the design system.
 
-| Path | What it holds |
-| --- | --- |
-| `lib/types.ts` | The `Report` contract: Zod schemas and the types inferred from them |
-| `lib/sample.ts` | A complete sample report (chemical equilibrium bridged to football tactics) and its Turkish translation |
-| `lib/labels.ts` | The fixed words of a report in English and Turkish, shared by the report page and the PDF |
-| `lib/concept-map-layout.ts` | Concept-map geometry (columns, curves, wrapped labels), shared by the report page and the PDF |
-| `lib/prompt.ts` | The system prompt and the messages sent to the LLM |
-| `lib/llm.ts` | The LLM call, reply validation and the single corrective retry |
-| `lib/notes.ts` | Text clean-up and heading-aware shortening of long notes |
-| `lib/pdf.ts` | PDF text extraction |
-| `lib/rate-limit.ts` | In-memory rate limiter |
-| `lib/constants.ts` | Limits shared by the form and the API |
-| `app/api/generate/route.ts` | The endpoint |
-| `app/page.tsx`, `components/GenerateForm.tsx` | Landing page and form |
-| `app/report/page.tsx`, `components/ReportView.tsx` | Report viewer; `/report?sample=1` shows the English sample, `/report?sample=tr` the Turkish one |
-| `components/ConceptMapDiagram.tsx` | The concept map drawn as SVG on the report page |
-| `components/ReportPDF.tsx` | The downloadable A4 PDF, rendered in the browser with `@react-pdf/renderer` |
-| `public/fonts` | DejaVu Sans (regular and bold) for the PDF, with its licence; it covers Turkish letters and the science symbols |
-| `scripts/self-check.test.mjs` | `npm test`: the samples against `ReportSchema`, the map layout, and the PDF font's glyph coverage |
+## Team
 
-The form stores the returned report in `sessionStorage` under the key `bridge:report`, and `/report` reads it from there. It also stores `bridge:demo` (`"true"` when the response carried `X-Bridge-Demo: true`), so the report page can say it is showing the demo sample.
-
-The PDF is built in the browser when you click "Download PDF", so it needs no server work and works offline: the fonts are served from `public/fonts`.
-
-## Limits to know about
-
-- The rate limiter keeps its counts in the memory of one server process, so they reset on restart and are not shared between serverless instances.
-- Handwriting, highlighting and diagrams are only read in PDFs of 30 pages or fewer. In a longer PDF only the selectable text counts, and anything handwritten is ignored.
-- A report takes about half a minute and, with `gpt-6-luna`, costs roughly 0.2 to 0.4 US cents (measured in October 2026). Each call's duration and token counts are written to the server log.
-- Vercel rejects request bodies over 4.5 MB before they reach the app, so the 10 MB PDF limit only applies in full on other hosts and locally.
-- The route allows up to 120 seconds per request (`maxDuration`), which needs Fluid compute on Vercel's Hobby plan.
-- The PDF font covers Latin, Turkish and common science symbols. Characters outside DejaVu Sans, such as emoji, would show as empty boxes in the PDF.
+SVT Labs: NAME_1 and NAME_2
