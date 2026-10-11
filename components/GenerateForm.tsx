@@ -65,7 +65,7 @@ const legendClass = "mb-3 text-sm font-bold";
 
 /**
  * Why a file cannot be sent, or undefined if it can. The PDF rule is a copy of
- * looksLikePdf in lib/pdf.ts, which is server-only because it imports pdf-parse.
+ * looksLikePdf in lib/pdf.ts, which is server-only because it imports unpdf.
  */
 function fileProblem(file: File): string | undefined {
   if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {

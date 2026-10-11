@@ -1,10 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    // pdf-parse loads its bundled pdf.js build with a dynamic require, which
-    // webpack cannot follow. Keeping it external makes Node load it from
-    // node_modules at runtime instead.
-    serverComponentsExternalPackages: ["pdf-parse"],
+    // unpdf ships its own pre-bundled build of pdf.js. Keeping it external lets
+    // Node load that file as it is instead of webpack re-bundling it.
+    serverComponentsExternalPackages: ["unpdf"],
   },
 };
 

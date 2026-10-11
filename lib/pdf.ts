@@ -1,10 +1,7 @@
 /**
  * PDF text extraction. Server-only: it needs Node's Buffer.
  */
-// Import the implementation file, not the package root: pdf-parse's index.js
-// tries to read a test PDF from disk when it thinks it is being run directly,
-// which crashes inside a bundled Next.js route.
-import pdfParse from "pdf-parse/lib/pdf-parse.js";
+import { getDocumentProxy } from "unpdf";
 
 /** Pages read from a PDF. Enough for a long slide deck; bounds parsing time. */
 const MAX_PDF_PAGES = 100;
@@ -23,24 +20,41 @@ export function looksLikePdf(file: File): boolean {
 }
 
 /**
- * Returns the text of a PDF. The result is an empty string for PDFs that hold
- * only scanned images.
+ * Returns the text of a PDF, one line of the page per line of text and a blank
+ * line between pages. The result is an empty string for PDFs that hold only
+ * images or drawings, such as scans and handwritten notes.
  *
  * @throws PdfError when the bytes are not a PDF or the PDF cannot be read.
  */
 export async function extractPdfText(file: File): Promise<string> {
-  const buffer = Buffer.from(await file.arrayBuffer());
+  const bytes = new Uint8Array(await file.arrayBuffer());
 
   // Every PDF carries the "%PDF-" signature within its first kilobyte.
-  if (!buffer.subarray(0, 1024).includes("%PDF-")) {
+  if (!Buffer.from(bytes.buffer, 0, Math.min(bytes.length, 1024)).includes("%PDF-")) {
     throw new PdfError("That file is not a valid PDF.");
   }
 
   try {
-    const result = await pdfParse(buffer, { max: MAX_PDF_PAGES });
-    return result.text;
+    // verbosity 0: pdf.js otherwise logs a warning for every quirk of a file.
+    const pdf = await getDocumentProxy(bytes, { verbosity: 0 });
+    try {
+      const pages: string[] = [];
+      for (let number = 1; number <= Math.min(pdf.numPages, MAX_PDF_PAGES); number++) {
+        const page = await pdf.getPage(number);
+        const content = await page.getTextContent();
+        pages.push(
+          content.items
+            // Marked-content markers have no text; text items say when their line ends.
+            .map((item) => ("str" in item ? item.str + (item.hasEOL ? "\n" : "") : ""))
+            .join(""),
+        );
+      }
+      return pages.join("\n\n");
+    } finally {
+      await pdf.loadingTask.destroy(); // frees the document; nothing is kept between uploads
+    }
   } catch (cause) {
-    console.error("[bridge] pdf-parse failed:", cause);
+    console.error("[bridge] PDF text extraction failed:", cause);
     throw new PdfError(
       "The PDF could not be read. It may be password-protected or damaged. Try pasting the text instead.",
     );

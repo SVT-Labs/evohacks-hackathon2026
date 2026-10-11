@@ -2,7 +2,7 @@
 
 Bridge turns lecture notes into explanations built around something the student already loves. Upload a PDF or paste notes, name an interest (football tactics, baking, chess), and get back the key concepts, an analogy for each one with an honest note on where it breaks down, a concept map, a quiz and next steps.
 
-Next.js 14 (App Router), TypeScript, Tailwind. No database and no auth: a report lives in the browser tab that requested it.
+Next.js 14 (App Router), TypeScript, Tailwind. No database and no auth: a report lives in the browser tab that requested it. Needs Node.js 22 or newer.
 
 ## Run it
 
@@ -78,7 +78,7 @@ The PDF is built in the browser when you click "Download PDF", so it needs no se
 ## Limits to know about
 
 - The rate limiter keeps its counts in the memory of one server process, so they reset on restart and are not shared between serverless instances.
-- Scanned PDFs contain no selectable text and are rejected with a message asking for pasted text.
+- Scanned PDFs and handwritten notes contain no selectable text and are rejected with a message asking for pasted text.
 - Vercel rejects request bodies over 4.5 MB before they reach the app, so the 10 MB PDF limit only applies in full on other hosts and locally.
 - The route allows up to 120 seconds per request (`maxDuration`), which needs Fluid compute on Vercel's Hobby plan.
 - The PDF font covers Latin, Turkish and common science symbols. Characters outside DejaVu Sans, such as emoji, would show as empty boxes in the PDF.

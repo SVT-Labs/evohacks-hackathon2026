@@ -2,6 +2,9 @@
   "name": "bridge",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -14,14 +17,13 @@
     "motion": "^14.1.0",
     "next": "14.2.35",
     "openai": "^7.32.0",
-    "pdf-parse": "^1.1.1",
     "react": "^18",
     "react-dom": "^18",
+    "unpdf": "^1.8.1",
     "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/node": "^20",
-    "@types/pdf-parse": "^1.1.5",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "eslint": "^8",

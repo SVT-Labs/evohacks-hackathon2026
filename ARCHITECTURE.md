@@ -13,7 +13,7 @@ map, a quiz and next steps. The report is shown as a web page and can be downloa
 | Styling | Tailwind CSS 3 | Colour tokens as CSS variables, light/dark via `prefers-color-scheme` |
 | Validation | Zod 4 | `ReportSchema` is the single contract between LLM, API and UI |
 | LLM | OpenAI SDK (any compatible endpoint) | Server-only, skipped entirely in demo mode |
-| PDF input | pdf-parse | Server-only text extraction |
+| PDF input | unpdf (pdf.js) | Server-only text extraction; needs Node 22 or newer |
 | PDF output | @react-pdf/renderer 4.9 | Runs in the browser only |
 | Motion | Motion (`motion/react`) 14.1 | Formerly Framer Motion; one global `MotionConfig reducedMotion="user"` |
 | Storage | `sessionStorage` | No database, no auth: a report lives in the tab that made it |
@@ -131,7 +131,7 @@ With nothing stored, ReportView shows an empty state with links to the form and 
 **GenerateForm** owns all landing state in React state (both tabs keep their content, so an error or
 a tab switch never loses input). Validation mirrors the server limits from `lib/constants.ts`; the
 PDF check copies `looksLikePdf` from `lib/pdf.ts` because that module is server-only (it imports
-pdf-parse). Submit builds `FormData` from state, awaits `Promise.all([request, delay(2500)])` so the
+unpdf). Submit builds `FormData` from state, awaits `Promise.all([request, delay(2500)])` so the
 loading sequence shows for at least 2.5 s, maps non-JSON error bodies by status, validates the reply,
 writes storage (with its own error message if storage is blocked) and navigates.
 

@@ -24,7 +24,7 @@ import { checkRateLimit, getClientKey } from "@/lib/rate-limit";
 import { SAMPLE_REPORT } from "@/lib/sample";
 import { GenerateInputSchema, describeIssues, type ApiError } from "@/lib/types";
 
-// pdf-parse and the OpenAI SDK need the Node.js runtime, not the Edge runtime.
+// PDF extraction and the OpenAI SDK need the Node.js runtime, not the Edge runtime.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 // Seconds a serverless host may spend on one request. It must stay above the
